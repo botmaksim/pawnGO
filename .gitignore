@@ -1,0 +1,27 @@
+# Build output
+engine/build/
+engine/bin/
+*.exe
+*.o
+*.obj
+
+# Node/Frontend
+node_modules/
+dist/
+build/
+.npm/
+
+# IDE & OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Engine dependencies
+engine/src/nnue/*.nnue
+!engine/src/nnue/nn-62ef826d1a6d.nnue
+
+# Logs
+*.log
+npm-debug.log*
