@@ -10,6 +10,7 @@ namespace Evaluation {
     int evaluate();
 
     extern const int nnue_piece_map[12];
+    extern bool use_nnue;
     
     const int MAX_PLY = 200;
     extern thread_local NNUEdata nnue_stack[MAX_PLY];

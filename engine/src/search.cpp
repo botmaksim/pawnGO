@@ -121,9 +121,13 @@ namespace Search {
 
         if (in_check) depth++;
 
+        // ALWAYS evaluate at internal nodes so the accumulator is ready for children and null moves
+        if (Evaluation::use_nnue && ply < Evaluation::MAX_PLY) {
+            Evaluation::evaluate_incremental(ply);
+        }
+
         // Null Move Pruning
         if (do_null && depth >= 3 && !in_check && ply > 0) {
-            // Only if we have non-pawn pieces
             bool has_pieces = (Bitboard::side == WHITE) ? 
                 (Bitboard::pieceBB[N] | Bitboard::pieceBB[B] | Bitboard::pieceBB[R] | Bitboard::pieceBB[Q]) :
                 (Bitboard::pieceBB[n] | Bitboard::pieceBB[b] | Bitboard::pieceBB[r] | Bitboard::pieceBB[q]);
@@ -133,6 +137,10 @@ namespace Search {
                 Bitboard::side ^= 1;
                 Bitboard::enpassant = no_sq;
                 Bitboard::hash_key = Zobrist::generate_hash_key();
+                
+                if (ply + 1 < Evaluation::MAX_PLY) {
+                    Evaluation::nnue_stack[ply + 1].dirtyPiece.dirtyNum = 0;
+                }
                 
                 int score = -alpha_beta(depth - 1 - 2, -beta, -beta + 1, ply + 1, false);
                 
@@ -246,6 +254,7 @@ namespace Search {
                 sort_moves(move_list, 0, 0); // initial sort
                 for (int i=0; i < move_list.count; i++) {
                     COPY_BOARD;
+                    Evaluation::nnue_stack[0].accumulator.computedAccumulation = 0;
                     if (!Board::make_move(move_list.moves[i], 0, &Evaluation::nnue_stack[1].dirtyPiece)) {
                         RESTORE_BOARD;
                         continue;
@@ -422,6 +431,7 @@ namespace Search {
                         if (std::find(excluded_moves.begin(), excluded_moves.end(), move) != excluded_moves.end()) continue;
                         
                         COPY_BOARD;
+                        Evaluation::nnue_stack[0].accumulator.computedAccumulation = 0;
                         if (!Board::make_move(move, 0, &Evaluation::nnue_stack[1].dirtyPiece)) {
                             RESTORE_BOARD;
                             continue;

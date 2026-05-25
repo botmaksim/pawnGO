@@ -205,6 +205,7 @@ namespace Evaluation {
 
         NNUEdata* nnue_data[3];
         nnue_data[0] = &nnue_stack[ply];
+        nnue_stack[ply].accumulator.computedAccumulation = 0; // Force update!
         nnue_data[1] = (ply >= 1) ? &nnue_stack[ply - 1] : nullptr;
         nnue_data[2] = (ply >= 2) ? &nnue_stack[ply - 2] : nullptr;
 
