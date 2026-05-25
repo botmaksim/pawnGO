@@ -92,6 +92,12 @@ void uciLoop() {
             std::cout << "info string Explain: " << expl << std::endl;
         }
     }
+
+    if (search_thread.joinable()) {
+        Search::stopped = true;
+        search_thread.join();
+    }
+    Search::stop_threads();
 }
 
 int main() {
@@ -102,6 +108,8 @@ int main() {
     log("Engine started.");
 
     MoveGen::init_all();
+    Zobrist::init();
+    TT::init(64);
     Evaluation::init_nnue("../src/nnue/nn-62ef826d1a6d.nnue");
     Search::init_threads(4);
 

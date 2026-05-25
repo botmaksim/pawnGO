@@ -13,9 +13,13 @@ namespace Search {
     extern int max_depth;
     extern int multi_pv;
     extern std::atomic<bool> stopped;
+
+    // History and Killer Heuristics (thread_local for lazy SMP)
+    extern thread_local int history_table[2][64][64];
+    extern thread_local Move killer_moves[2][100]; 
     
     // Sort moves to improve alpha-beta pruning
-    void sort_moves(MoveList& move_list);
+    void sort_moves(MoveList& move_list, Move hash_move, int ply);
 
     // Alpha-Beta with Quiescence search
     int quiescence(int alpha, int beta);

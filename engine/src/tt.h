@@ -16,9 +16,13 @@ struct TTEntry {
     Move best_move;
 };
 
+#include <mutex>
+
 namespace TT {
     extern TTEntry* table;
     extern int num_entries;
+    extern std::mutex* tt_locks;
+    const int NUM_LOCKS = 1024;
     
     void init(int mb_size);
     void free_table();

@@ -51,6 +51,7 @@ namespace Bitboard {
 
     void parse_fen(const std::string& fen) {
         init();
+        current_fen = fen;
         int rank = 7;
         int file = 0;
         size_t i = 0;
@@ -119,8 +120,8 @@ namespace Bitboard {
         }
 
         // Update occupancies
-        for (int p = P; p <= K; p++) occupancies[WHITE] |= pieceBB[p];
-        for (int p = p; p <= k; p++) occupancies[BLACK] |= pieceBB[p];
+        for (int piece = P; piece <= K; piece++) occupancies[WHITE] |= pieceBB[piece];
+        for (int piece = p; piece <= k; piece++) occupancies[BLACK] |= pieceBB[piece];
         // Update occupancies for BOTH sides
         occupancies[BOTH] |= occupancies[WHITE];
         occupancies[BOTH] |= occupancies[BLACK];

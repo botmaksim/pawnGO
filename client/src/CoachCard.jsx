@@ -1,7 +1,7 @@
 import React from 'react';
 
 export default function CoachCard({ coachMessage, explainData }) {
-    if (!coachMessage) return null;
+    if (!coachMessage && !explainData) return null;
 
     let factors = [];
     if (explainData) {

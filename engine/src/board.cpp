@@ -1,6 +1,8 @@
 #include "board.h"
 #include "movegen.h"
 #include "zobrist.h"
+#include "nnue/src/nnue.h"
+#include "evaluation.h"
 #include <iostream>
 #include <chrono>
 
@@ -19,7 +21,7 @@ namespace Board {
          7, 15, 15, 15,  3, 15, 15, 11
     };
 
-    int make_move(Move move, int move_flag) {
+    int make_move(Move move, int move_flag, DirtyPiece* dp) {
         if (move_flag == 1) { // captures only
             if (!GET_MOVE_CAPTURE(move)) return 0;
         }
@@ -33,6 +35,16 @@ namespace Board {
         int enpassant = GET_MOVE_ENPASSANT(move);
         int castling = GET_MOVE_CASTLING(move);
 
+        if (dp) {
+            dp->dirtyNum = 0;
+            // King must be first if it moved!
+            // Wait, we add the moving piece first. If it's King, it's at index 0.
+            dp->pc[0] = Evaluation::nnue_piece_map[piece];
+            dp->from[0] = source;
+            dp->to[0] = target;
+            dp->dirtyNum++;
+        }
+
         Bitboard::pop_bit(Bitboard::pieceBB[piece], source);
         Bitboard::set_bit(Bitboard::pieceBB[piece], target);
 
@@ -41,21 +53,50 @@ namespace Board {
             if (Bitboard::side == WHITE) { start_piece = p; end_piece = k; }
             else { start_piece = P; end_piece = K; }
 
+            int captured_piece = -1;
             for (int bb_piece = start_piece; bb_piece <= end_piece; bb_piece++) {
                 if (Bitboard::get_bit(Bitboard::pieceBB[bb_piece], target)) {
+                    captured_piece = bb_piece;
                     Bitboard::pop_bit(Bitboard::pieceBB[bb_piece], target);
                     break;
                 }
+            }
+            if (dp && captured_piece != -1) {
+                dp->pc[dp->dirtyNum] = Evaluation::nnue_piece_map[captured_piece];
+                dp->from[dp->dirtyNum] = target;
+                dp->to[dp->dirtyNum] = 64; // removed
+                dp->dirtyNum++;
             }
         }
 
         if (promoted) {
             Bitboard::pop_bit(Bitboard::pieceBB[piece], target);
             Bitboard::set_bit(Bitboard::pieceBB[promoted], target);
+            
+            if (dp) {
+                // The pawn didn't land on target, it disappeared from source.
+                // Wait, dp->pc[0] was set to pawn, from source to target.
+                // We should change it to: pawn from source to 64, promoted piece from 64 to target.
+                dp->to[0] = 64; // Pawn disappears
+                
+                dp->pc[dp->dirtyNum] = Evaluation::nnue_piece_map[promoted];
+                dp->from[dp->dirtyNum] = 64; // Promoted piece appears
+                dp->to[dp->dirtyNum] = target;
+                dp->dirtyNum++;
+            }
         }
 
         if (enpassant) {
-            (Bitboard::side == WHITE) ? Bitboard::pop_bit(Bitboard::pieceBB[p], target - 8) : Bitboard::pop_bit(Bitboard::pieceBB[P], target + 8);
+            int ep_pawn_sq = (Bitboard::side == WHITE) ? (target - 8) : (target + 8);
+            int ep_pawn = (Bitboard::side == WHITE) ? p : P;
+            Bitboard::pop_bit(Bitboard::pieceBB[ep_pawn], ep_pawn_sq);
+            
+            if (dp) {
+                dp->pc[dp->dirtyNum] = Evaluation::nnue_piece_map[ep_pawn];
+                dp->from[dp->dirtyNum] = ep_pawn_sq;
+                dp->to[dp->dirtyNum] = 64; // removed
+                dp->dirtyNum++;
+            }
         }
 
         Bitboard::enpassant = no_sq;
@@ -65,11 +106,22 @@ namespace Board {
         }
 
         if (castling) {
+            int rook_sq = -1, new_rook_sq = -1, r_piece = (Bitboard::side == WHITE) ? R : r;
             switch (target) {
-                case g1: Bitboard::pop_bit(Bitboard::pieceBB[R], h1); Bitboard::set_bit(Bitboard::pieceBB[R], f1); break;
-                case c1: Bitboard::pop_bit(Bitboard::pieceBB[R], a1); Bitboard::set_bit(Bitboard::pieceBB[R], d1); break;
-                case g8: Bitboard::pop_bit(Bitboard::pieceBB[r], h8); Bitboard::set_bit(Bitboard::pieceBB[r], f8); break;
-                case c8: Bitboard::pop_bit(Bitboard::pieceBB[r], a8); Bitboard::set_bit(Bitboard::pieceBB[r], d8); break;
+                case g1: rook_sq = h1; new_rook_sq = f1; break;
+                case c1: rook_sq = a1; new_rook_sq = d1; break;
+                case g8: rook_sq = h8; new_rook_sq = f8; break;
+                case c8: rook_sq = a8; new_rook_sq = d8; break;
+            }
+            if (rook_sq != -1) {
+                Bitboard::pop_bit(Bitboard::pieceBB[r_piece], rook_sq); 
+                Bitboard::set_bit(Bitboard::pieceBB[r_piece], new_rook_sq);
+                if (dp) {
+                    dp->pc[dp->dirtyNum] = Evaluation::nnue_piece_map[r_piece];
+                    dp->from[dp->dirtyNum] = rook_sq;
+                    dp->to[dp->dirtyNum] = new_rook_sq;
+                    dp->dirtyNum++;
+                }
             }
         }
 
@@ -85,13 +137,14 @@ namespace Board {
         Bitboard::occupancies[BOTH] |= Bitboard::occupancies[WHITE];
         Bitboard::occupancies[BOTH] |= Bitboard::occupancies[BLACK];
 
-        // Update Hash Key (full recalculation for simplicity, can be optimized later)
+        Bitboard::side ^= 1; // Change side before hashing
+
+        // Update Hash Key (full recalculation for simplicity)
         Bitboard::hash_key = Zobrist::generate_hash_key();
 
         // Check if king is in check after our move
-        int king_sq = (Bitboard::side == WHITE) ? Bitboard::lsb(Bitboard::pieceBB[K]) : Bitboard::lsb(Bitboard::pieceBB[k]);
-        
-        Bitboard::side ^= 1; // Change side
+        // Since we already changed side, if side is BLACK, White just moved, so check White king (K)
+        int king_sq = (Bitboard::side == BLACK) ? Bitboard::lsb(Bitboard::pieceBB[K]) : Bitboard::lsb(Bitboard::pieceBB[k]);
 
         if (MoveGen::is_square_attacked(king_sq, Bitboard::side)) {
             return 0; // Illegal move

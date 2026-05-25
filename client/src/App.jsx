@@ -33,6 +33,7 @@ function App() {
   const [explainData, setExplainData] = useState(null);
   const [coachMessage, setCoachMessage] = useState('');
   const [isVisualEngineEnabled, setIsVisualEngineEnabled] = useState(true);
+  const [isDragging, setIsDragging] = useState(false);
   const wsRef = useRef(null);
 
   // Derived state
@@ -47,6 +48,11 @@ function App() {
   }
   const turnColor = game.turn() === 'w' ? 'White' : 'Black';
 
+  const currentFenRef = useRef(currentFen);
+  useEffect(() => {
+    currentFenRef.current = currentFen;
+  }, [currentFen]);
+
   useEffect(() => {
     wsRef.current = new WebSocket('ws://localhost:8080');
 
@@ -55,6 +61,12 @@ function App() {
       wsRef.current.send('uci');
       wsRef.current.send('isready');
       wsRef.current.send(`setoption name MultiPV value ${multiPvCount}`);
+      // Start analysis for the initial position immediately
+      wsRef.current.send(`position fen ${currentFenRef.current}`);
+      wsRef.current.send(`go depth ${analysisDepth}`);
+      if (isVisualEngineEnabled) {
+          wsRef.current.send(`explain`);
+      }
     };
 
     wsRef.current.onmessage = (event) => {
@@ -65,22 +77,58 @@ function App() {
         const multipvMatch = msg.match(/multipv (\d+)/) || [null, '1'];
         const scoreCpMatch = msg.match(/score cp (-?\d+)/);
         const scoreMateMatch = msg.match(/score mate (-?\d+)/);
-        const pvMatch = msg.match(/pv (.*)/);
+        const pvMatch = msg.match(/\bpv (.*)/);
 
         if (depthMatch && pvMatch) {
           const multipv = multipvMatch[1];
           let scoreStr = '';
-          if (scoreCpMatch) scoreStr = (parseInt(scoreCpMatch[1]) / 100).toFixed(2);
-          if (scoreMateMatch) scoreStr = `M${scoreMateMatch[1]}`;
+          
+          const tempGame = new Chess();
+          try { tempGame.load(currentFenRef.current); } catch(e) {}
+          const isBlackTurn = tempGame.turn() === 'b';
 
-          console.log(`[Engine] Depth ${depthMatch[1]} Line ${multipv} | Score: ${scoreStr} | PV: ${pvMatch[1].substring(0, 20)}...`);
+          if (scoreCpMatch) {
+            let cp = parseInt(scoreCpMatch[1]);
+            if (isBlackTurn) cp = -cp;
+            scoreStr = (cp / 100).toFixed(2);
+          }
+          if (scoreMateMatch) {
+            let mate = parseInt(scoreMateMatch[1]);
+            if (isBlackTurn) mate = -mate;
+            scoreStr = `M${mate}`;
+          }
+
+          let sanPv = pvMatch[1];
+          try {
+              const sanGame = new Chess();
+              try { sanGame.load(currentFenRef.current); } catch(e) {}
+              const rawPv = pvMatch[1].trim().split(' ');
+              const sanMoves = rawPv.map(move => {
+                  if (move.length < 4) return move;
+                  const moveObj = {
+                      from: move.substring(0, 2),
+                      to: move.substring(2, 4),
+                      promotion: move.length === 5 ? move.substring(4, 5) : undefined
+                  };
+                  try {
+                      const m = sanGame.move(moveObj);
+                      return m ? m.san : move;
+                  } catch(e) {
+                      return move;
+                  }
+              });
+              sanPv = sanMoves.join(' ');
+          } catch(e) {
+              console.error('[Engine] Failed to translate PV to SAN', e);
+          }
 
           setPvLines(prev => ({
             ...prev,
             [multipv]: {
               depth: depthMatch[1],
               score: scoreStr,
-              pv: pvMatch[1]
+              pv: pvMatch[1],
+              san: sanPv
             }
           }));
         }
@@ -142,13 +190,8 @@ function App() {
       // Create new branch
       const newId = genId();
       
-      // Dummy annotation logic (random chance to assign ? or ! just for visual demo)
-      const r = Math.random();
+      // Remove dummy annotation logic to avoid false blunders
       let annotation = '';
-      if (r > 0.95) annotation = '!!';
-      else if (r > 0.85) annotation = '!';
-      else if (r > 0.75) annotation = '?!';
-      else if (r > 0.65) annotation = '??';
 
       const newNode = {
         id: newId,
@@ -491,6 +534,18 @@ function App() {
           }
       });
   }
+  const parseScoreForSort = (scoreStr) => {
+    if (!scoreStr) return 0;
+    if (scoreStr.startsWith('M')) {
+      const moves = parseInt(scoreStr.substring(1), 10);
+      return 10000 - moves;
+    }
+    if (scoreStr.startsWith('-M')) {
+      const moves = parseInt(scoreStr.substring(2), 10);
+      return -10000 + moves;
+    }
+    return parseFloat(scoreStr) || 0;
+  };
 
   return (
     <div className="app-container">
@@ -519,6 +574,8 @@ function App() {
               position={currentFen} 
               boardOrientation={boardOrientation}
               onPieceDrop={isSetupMode ? onPieceDropSetup : onDrop}
+              onPieceDragBegin={() => setIsDragging(true)}
+              onPieceDragEnd={() => setIsDragging(false)}
               onSquareClick={onSquareClick}
               customSquareStyles={customStyles}
               customDarkSquareStyle={{ backgroundColor: '#476375' }}
@@ -678,7 +735,9 @@ function App() {
           <div className="engine-output">
             {Object.keys(pvLines).length === 0 ? <span style={{color: '#888'}}>Waiting for engine...</span> : null}
             {Object.values(pvLines)
-              .sort((a,b) => parseFloat(b.score) - parseFloat(a.score)) // sort by score roughly
+              .sort((a,b) => game.turn() === 'w' 
+                  ? parseScoreForSort(b.score) - parseScoreForSort(a.score) 
+                  : parseScoreForSort(a.score) - parseScoreForSort(b.score))
               .map((line, i) => (
               <div key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px', marginBottom: '4px' }}>
                 <span style={{ color: '#ffb74d', marginRight: '8px', display: 'inline-block', width: '40px' }}>
@@ -687,7 +746,9 @@ function App() {
                 <span style={{ color: '#888', fontSize: '0.8em', marginRight: '8px' }}>
                   d{line.depth}
                 </span>
-                <span>{line.pv}</span>
+                <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {line.san || line.pv}
+                </span>
               </div>
             ))}
           </div>

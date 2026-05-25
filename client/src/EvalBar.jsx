@@ -34,6 +34,8 @@ const EvalBar = ({ score, boardOrientation }) => {
   return (
     <div style={{
       width: '30px',
+      minWidth: '30px',
+      flexShrink: 0,
       height: '100%',
       backgroundColor: isBlackBottom ? '#fff' : '#333', // Empty background
       borderRadius: '4px',

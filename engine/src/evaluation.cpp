@@ -175,6 +175,42 @@ namespace Evaluation {
         return std::max(0, phase);
     }
 
+    thread_local NNUEdata nnue_stack[MAX_PLY];
+
+    int evaluate_incremental(int ply) {
+        if (!use_nnue || ply >= MAX_PLY) return evaluate();
+
+        int pieces[33];
+        int squares[33];
+        int index = 2;
+
+        pieces[0] = 1; // wking
+        squares[0] = Bitboard::lsb(Bitboard::pieceBB[K]);
+        pieces[1] = 7; // bking
+        squares[1] = Bitboard::lsb(Bitboard::pieceBB[k]);
+
+        for (int p = P; p <= k; p++) {
+            if (p == K || p == k) continue;
+            
+            U64 bb = Bitboard::pieceBB[p];
+            while (bb) {
+                int sq = Bitboard::lsb(bb);
+                pieces[index] = nnue_piece_map[p];
+                squares[index] = sq;
+                index++;
+                Bitboard::pop_bit(bb, sq);
+            }
+        }
+        pieces[index] = 0; // End marker
+
+        NNUEdata* nnue_data[3];
+        nnue_data[0] = &nnue_stack[ply];
+        nnue_data[1] = (ply >= 1) ? &nnue_stack[ply - 1] : nullptr;
+        nnue_data[2] = (ply >= 2) ? &nnue_stack[ply - 2] : nullptr;
+
+        return nnue_evaluate_incremental(Bitboard::side, pieces, squares, nnue_data);
+    }
+
     int evaluate() {
         int mg_score[2] = {0, 0};
         int eg_score[2] = {0, 0};
@@ -223,6 +259,8 @@ namespace Evaluation {
             int nnue_score = nnue_evaluate(Bitboard::side, pieces, squares);
             return nnue_score;
         }
+
+
 
         // Arrays of pointers to PSTs for easy iteration
         const int* mg_psts[6] = {mg_pawn_pst, mg_knight_pst, mg_bishop_pst, mg_rook_pst, mg_queen_pst, mg_king_pst};

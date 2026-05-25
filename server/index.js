@@ -60,16 +60,25 @@ class LLMProvider {
         }
 
         // 2. Fallback Template Generator
-        let message = "Позиция примерно равна, идет сложная позиционная борьба.";
-        if (dominantFactor && maxDelta >= 0.5) {
-            const side = isWhiteAdvantage ? "белых" : "черных";
-            const otherSide = isWhiteAdvantage ? "черных" : "белых";
-            
-            if (dominantFactor.key === 'material') message = `У ${side} серьезное материальное преимущество.`;
-            else if (dominantFactor.key === 'activity') message = `Фигуры ${side} расположены намного активнее и простреливают важные поля.`;
-            else if (dominantFactor.key === 'king_safety') message = `У ${otherSide} серьезные проблемы с безопасностью короля!`;
-            else if (dominantFactor.key === 'center_control') message = `${side.charAt(0).toUpperCase() + side.slice(1)} полностью доминируют в центре доски.`;
+        let message = "Позиция примерно равна, идет сложная борьба.";
+        
+        let advText = isWhiteAdvantage ? "белых" : "черных";
+        
+        if (maxDelta > 0.3) {
+            let detail = "";
+            if (dominantFactor.key === 'material') {
+                detail = `У ${advText} перевес по материалу.`;
+            } else if (dominantFactor.key === 'activity') {
+                detail = `Фигуры ${advText} расставлены более активно.`;
+            } else if (dominantFactor.key === 'king_safety') {
+                const opp = isWhiteAdvantage ? "черного" : "белого";
+                detail = `Позиция ${opp} короля вызывает опасения.`;
+            } else if (dominantFactor.key === 'center_control') {
+                detail = `Ощутимое давление ${advText} в центре доски.`;
+            }
+            message = `Преимущество на стороне ${advText}. ${detail}`;
         }
+        
         return message;
     }
 }
@@ -85,7 +94,7 @@ const errLog = (msg) => {
 
 function startEngine() {
     log(`Starting engine from ${enginePath}`);
-    engineProcess = spawn(enginePath);
+    engineProcess = spawn(enginePath, [], { cwd: path.join(__dirname, '../engine/build') });
 
     engineProcess.stdout.on('data', (data) => {
         const output = data.toString();

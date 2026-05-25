@@ -2,6 +2,7 @@
 #include "types.h"
 #include "bitboard.h"
 #include "move_generator.h"
+#include "nnue/src/nnue.h"
 
 namespace Board {
     // Macro to copy board state
@@ -24,7 +25,7 @@ namespace Board {
         Bitboard::castle = castle_copy; \
         Bitboard::hash_key = hash_key_copy;
 
-    int make_move(Move move, int move_flag); // move_flag: 0 = all moves, 1 = captures only
+    int make_move(Move move, int move_flag, DirtyPiece* dp = nullptr);
     
     extern long long nodes;
     void perft_driver(int depth);

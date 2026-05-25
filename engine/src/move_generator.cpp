@@ -20,7 +20,7 @@ namespace MoveGen {
         return false;
     }
 
-    void generate_moves(MoveList& move_list) {
+    void generate_moves(MoveList& move_list, bool only_captures) {
         move_list.count = 0;
         int source, target;
         U64 bitboard, attacks;
@@ -42,7 +42,7 @@ namespace MoveGen {
                         move_list.add(ENCODE_MOVE(source, target, P, R, 0, 0, 0, 0));
                         move_list.add(ENCODE_MOVE(source, target, P, B, 0, 0, 0, 0));
                         move_list.add(ENCODE_MOVE(source, target, P, N, 0, 0, 0, 0));
-                    } else {
+                    } else if (!only_captures) {
                         move_list.add(ENCODE_MOVE(source, target, P, 0, 0, 0, 0, 0));
                         if ((source >= a2 && source <= h2) && !(Bitboard::occupancies[BOTH] & (1ULL << (target + 8)))) {
                             move_list.add(ENCODE_MOVE(source, target + 8, P, 0, 0, 1, 0, 0));
@@ -77,7 +77,7 @@ namespace MoveGen {
                         move_list.add(ENCODE_MOVE(source, target, p, r, 0, 0, 0, 0));
                         move_list.add(ENCODE_MOVE(source, target, p, b, 0, 0, 0, 0));
                         move_list.add(ENCODE_MOVE(source, target, p, n, 0, 0, 0, 0));
-                    } else {
+                    } else if (!only_captures) {
                         move_list.add(ENCODE_MOVE(source, target, p, 0, 0, 0, 0, 0));
                         if ((source >= a7 && source <= h7) && !(Bitboard::occupancies[BOTH] & (1ULL << (target - 8)))) {
                             move_list.add(ENCODE_MOVE(source, target - 8, p, 0, 0, 1, 0, 0));
@@ -108,33 +108,35 @@ namespace MoveGen {
         }
 
         // CASTLING
-        if (Bitboard::side == WHITE) {
-            if (Bitboard::castle & wk) {
-                if (!Bitboard::get_bit(Bitboard::occupancies[BOTH], f1) && !Bitboard::get_bit(Bitboard::occupancies[BOTH], g1)) {
-                    if (!is_square_attacked(e1, BLACK) && !is_square_attacked(f1, BLACK)) {
-                        move_list.add(ENCODE_MOVE(e1, g1, K, 0, 0, 0, 0, 1));
+        if (!only_captures) {
+            if (Bitboard::side == WHITE) {
+                if (Bitboard::castle & wk) {
+                    if (!Bitboard::get_bit(Bitboard::occupancies[BOTH], f1) && !Bitboard::get_bit(Bitboard::occupancies[BOTH], g1)) {
+                        if (!is_square_attacked(e1, BLACK) && !is_square_attacked(f1, BLACK)) {
+                            move_list.add(ENCODE_MOVE(e1, g1, K, 0, 0, 0, 0, 1));
+                        }
                     }
                 }
-            }
-            if (Bitboard::castle & wq) {
-                if (!Bitboard::get_bit(Bitboard::occupancies[BOTH], d1) && !Bitboard::get_bit(Bitboard::occupancies[BOTH], c1) && !Bitboard::get_bit(Bitboard::occupancies[BOTH], b1)) {
-                    if (!is_square_attacked(e1, BLACK) && !is_square_attacked(d1, BLACK)) {
-                        move_list.add(ENCODE_MOVE(e1, c1, K, 0, 0, 0, 0, 1));
+                if (Bitboard::castle & wq) {
+                    if (!Bitboard::get_bit(Bitboard::occupancies[BOTH], d1) && !Bitboard::get_bit(Bitboard::occupancies[BOTH], c1) && !Bitboard::get_bit(Bitboard::occupancies[BOTH], b1)) {
+                        if (!is_square_attacked(e1, BLACK) && !is_square_attacked(d1, BLACK)) {
+                            move_list.add(ENCODE_MOVE(e1, c1, K, 0, 0, 0, 0, 1));
+                        }
                     }
                 }
-            }
-        } else {
-            if (Bitboard::castle & bk) {
-                if (!Bitboard::get_bit(Bitboard::occupancies[BOTH], f8) && !Bitboard::get_bit(Bitboard::occupancies[BOTH], g8)) {
-                    if (!is_square_attacked(e8, WHITE) && !is_square_attacked(f8, WHITE)) {
-                        move_list.add(ENCODE_MOVE(e8, g8, k, 0, 0, 0, 0, 1));
+            } else {
+                if (Bitboard::castle & bk) {
+                    if (!Bitboard::get_bit(Bitboard::occupancies[BOTH], f8) && !Bitboard::get_bit(Bitboard::occupancies[BOTH], g8)) {
+                        if (!is_square_attacked(e8, WHITE) && !is_square_attacked(f8, WHITE)) {
+                            move_list.add(ENCODE_MOVE(e8, g8, k, 0, 0, 0, 0, 1));
+                        }
                     }
                 }
-            }
-            if (Bitboard::castle & bq) {
-                if (!Bitboard::get_bit(Bitboard::occupancies[BOTH], d8) && !Bitboard::get_bit(Bitboard::occupancies[BOTH], c8) && !Bitboard::get_bit(Bitboard::occupancies[BOTH], b8)) {
-                    if (!is_square_attacked(e8, WHITE) && !is_square_attacked(d8, WHITE)) {
-                        move_list.add(ENCODE_MOVE(e8, c8, k, 0, 0, 0, 0, 1));
+                if (Bitboard::castle & bq) {
+                    if (!Bitboard::get_bit(Bitboard::occupancies[BOTH], d8) && !Bitboard::get_bit(Bitboard::occupancies[BOTH], c8) && !Bitboard::get_bit(Bitboard::occupancies[BOTH], b8)) {
+                        if (!is_square_attacked(e8, WHITE) && !is_square_attacked(d8, WHITE)) {
+                            move_list.add(ENCODE_MOVE(e8, c8, k, 0, 0, 0, 0, 1));
+                        }
                     }
                 }
             }
@@ -163,6 +165,7 @@ namespace MoveGen {
                     Bitboard::pop_bit(attacks, target);
 
                     int is_capture = Bitboard::get_bit(Bitboard::occupancies[opp_side], target) ? 1 : 0;
+                    if (only_captures && !is_capture) continue;
                     move_list.add(ENCODE_MOVE(source, target, piece, 0, is_capture, 0, 0, 0));
                 }
             }

@@ -3,10 +3,17 @@
 
 #include "types.h"
 #include "board.h"
+#include "nnue/src/nnue.h"
 
 namespace Evaluation {
     void init_nnue(const char* file_path);
     int evaluate();
+
+    extern const int nnue_piece_map[12];
+    
+    const int MAX_PLY = 200;
+    extern thread_local NNUEdata nnue_stack[MAX_PLY];
+    int evaluate_incremental(int ply);
 
     extern const int pawn_score[64];
     extern const int knight_score[64];
