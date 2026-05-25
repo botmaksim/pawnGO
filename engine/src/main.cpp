@@ -80,6 +80,9 @@ void uciLoop() {
                 depth = std::stoi(line.substr(depth_idx + 6));
             }
             
+            // Reset stopped flag before launching!
+            Search::stopped = false;
+
             // Launch search in a background thread so UCI remains responsive
             search_thread = std::thread(Search::search_position, depth);
             log("Search started in background thread for depth " + std::to_string(depth));
