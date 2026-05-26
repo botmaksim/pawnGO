@@ -40,8 +40,8 @@ body {
 }
 
 .board-container {
-  width: 100%;
-  max-width: 500px;
+  width: 500px; /* Fixed width to prevent layout jitter */
+  min-width: 500px;
   min-height: 580px; /* Ensure space for spare pieces */
   background: rgba(255, 255, 255, 0.08);
   padding: 1.5rem;
@@ -84,8 +84,8 @@ body {
 }
 
 .panel-container {
-  width: 100%;
-  max-width: 400px;
+  width: 400px; /* Fixed width to prevent layout jitter */
+  min-width: 400px;
   display: flex;
   flex-direction: column;
   gap: 1rem;

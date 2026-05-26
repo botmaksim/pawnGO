@@ -17,13 +17,16 @@ namespace Search {
     // History and Killer Heuristics (thread_local for lazy SMP)
     extern thread_local int history_table[2][64][64];
     extern thread_local Move killer_moves[2][100]; 
+    extern thread_local Move counter_move[64][64];
+    extern int LMR_table[64][64];
+    void init_lmr_table();
     
     // Sort moves to improve alpha-beta pruning
-    void sort_moves(MoveList& move_list, Move hash_move, int ply);
+    void sort_moves(MoveList& move_list, Move hash_move, int ply, Move prev_move = 0);
 
     // Alpha-Beta with Quiescence search
-    int quiescence(int alpha, int beta);
-    int alpha_beta(int depth, int alpha, int beta);
+    int quiescence(int alpha, int beta, int ply);
+    int alpha_beta(int depth, int alpha, int beta, int ply, bool do_null, Move prev_move = 0);
     
     // Lazy SMP Thread Pool
     void init_threads(int num_threads = 4);

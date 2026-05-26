@@ -26,8 +26,6 @@ namespace Evaluation {
     // White: 0-5, Black: 6-11
     extern const int piece_weights[12];
 
-    int evaluate();
-    std::string shadow_evaluate();
 }
 
 #endif // EVALUATION_H

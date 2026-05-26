@@ -25,3 +25,7 @@ engine/src/nnue/*.nnue
 # Logs
 *.log
 npm-debug.log*
+
+# Syzygy Tables
+syzygy_tables/
+engine/3-4-5/

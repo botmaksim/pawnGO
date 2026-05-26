@@ -11,6 +11,7 @@
 #include "zobrist.h"
 #include "tt.h"
 #include "evaluation.h"
+#include "syzygy/tbprobe.h"
 
 std::ofstream engine_logger("engine.log", std::ios_base::app);
 
@@ -86,10 +87,13 @@ void uciLoop() {
             // Launch search in a background thread so UCI remains responsive
             search_thread = std::thread(Search::search_position, depth);
             log("Search started in background thread for depth " + std::to_string(depth));
-        } else if (line == "explain") {
-            std::string expl = Evaluation::shadow_evaluate();
-            log("Explain called, output: " + expl);
-            std::cout << "info string Explain: " << expl << std::endl;
+        } else if (line.find("setoption name SyzygyPath value ") != std::string::npos) {
+            std::string path = line.substr(32);
+            if (tb_init(path.c_str())) {
+                log("Syzygy Tablebases initialized from " + path + " (Max pieces: " + std::to_string(TB_LARGEST) + ")");
+            } else {
+                log("Failed to initialize Syzygy Tablebases from " + path);
+            }
         }
     }
 
@@ -110,7 +114,12 @@ int main() {
     MoveGen::init_all();
     Zobrist::init();
     TT::init(64);
+    Search::init_lmr_table();
     Evaluation::init_nnue("../src/nnue/nn-62ef826d1a6d.nnue");
+    if (tb_init("../3-4-5")) {
+        log("Syzygy Tablebases automatically initialized from ../3-4-5 (Max pieces: " + std::to_string(TB_LARGEST) + ")");
+    }
+
     Search::init_threads(4);
 
     uciLoop();

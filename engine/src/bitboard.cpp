@@ -110,6 +110,14 @@ namespace Bitboard {
         }
         i++; // skip space
 
+        // Validate castling rights
+        if (!(pieceBB[K] & (1ULL << 4))) castle &= ~(wk | wq);
+        if (!(pieceBB[R] & (1ULL << 7))) castle &= ~wk;
+        if (!(pieceBB[R] & (1ULL << 0))) castle &= ~wq;
+        if (!(pieceBB[k] & (1ULL << 60))) castle &= ~(bk | bq);
+        if (!(pieceBB[r] & (1ULL << 63))) castle &= ~bk;
+        if (!(pieceBB[r] & (1ULL << 56))) castle &= ~bq;
+
         // Parse En Passant
         if (i < fen.length() && fen[i] != '-') {
             int f = fen[i] - 'a';

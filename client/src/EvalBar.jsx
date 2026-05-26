@@ -7,7 +7,13 @@ const EvalBar = ({ score, boardOrientation }) => {
   let displayScore = score || "0.00";
   
   if (score) {
-    if (score.startsWith('M')) {
+    if (score === 'TBW') {
+       fillPercentage = 100;
+       displayScore = 'TBW';
+    } else if (score === 'TBL') {
+       fillPercentage = 0;
+       displayScore = 'TBL';
+    } else if (score.startsWith('M')) {
        // Mate for white
        fillPercentage = 100;
        displayScore = score;
@@ -17,10 +23,10 @@ const EvalBar = ({ score, boardOrientation }) => {
        displayScore = score;
     } else {
        const cp = parseFloat(score);
-       // Cap at +/- 5 pawns for visual scale
-       let cappedCp = Math.max(-5, Math.min(5, cp));
-       // Map -5 -> 0%, 0 -> 50%, +5 -> 100%
-       fillPercentage = 50 + (cappedCp * 10);
+       // Non-linear scale mapping CP to fill percentage:
+       // 50 + 50 * (2/PI) * arctan(cp / 4)
+       // This gives a smooth curve where 0 is 50%, +4 is 75%, +10 is ~88%
+       fillPercentage = 50 + 50 * (2 / Math.PI) * Math.atan(cp / 4.0);
     }
   }
 

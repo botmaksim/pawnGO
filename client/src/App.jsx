@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Chess } from 'chess.js';
 import { Chessboard } from 'react-chessboard';
 import EvalBar from './EvalBar';
-import CoachCard from './CoachCard';
+import { classifyMove, getAnnotationDescription } from './utils/analysis';
 
 // Helper to generate IDs
 const genId = () => Math.random().toString(36).substr(2, 9);
@@ -14,6 +14,8 @@ function App() {
   const [nodes, setNodes] = useState({
     'root': { id: 'root', fen: chessHelper.fen(), san: 'Start', parentId: null, children: [], evalStr: null, annotation: '', ply: 0 }
   });
+  const nodesRef = useRef(nodes);
+  useEffect(() => { nodesRef.current = nodes; }, [nodes]);
   const [currentNodeId, setCurrentNodeId] = useState('root');
   
   // Modes
@@ -30,9 +32,14 @@ function App() {
   const [pvLines, setPvLines] = useState({}); // map of multipv index -> line object
   const [multiPvCount, setMultiPvCount] = useState(3);
   const [analysisDepth, setAnalysisDepth] = useState(15);
-  const [explainData, setExplainData] = useState(null);
-  const [coachMessage, setCoachMessage] = useState('');
-  const [isVisualEngineEnabled, setIsVisualEngineEnabled] = useState(true);
+  
+  // Full Game Analysis
+  const [isAnalyzingGame, setIsAnalyzingGame] = useState(false);
+  const [analyzeProgress, setAnalyzeProgress] = useState({ current: 0, total: 0 });
+  const analyzeQueueRef = useRef([]);
+  const currentAnalyzeNodeIdRef = useRef(null);
+  const isAnalyzingGameRef = useRef(false);
+  const latestPvLinesRef = useRef({});
   const [isDragging, setIsDragging] = useState(false);
   const wsRef = useRef(null);
 
@@ -62,11 +69,7 @@ function App() {
       wsRef.current.send('isready');
       wsRef.current.send(`setoption name MultiPV value ${multiPvCount}`);
       // Start analysis for the initial position immediately
-      wsRef.current.send(`position fen ${currentFenRef.current}`);
-      wsRef.current.send(`go depth ${analysisDepth}`);
-      if (isVisualEngineEnabled) {
-          wsRef.current.send(`explain`);
-      }
+      requestAnalysis(currentFenRef.current);
     };
 
     wsRef.current.onmessage = (event) => {
@@ -84,26 +87,37 @@ function App() {
           let scoreStr = '';
           
           const tempGame = new Chess();
-          try { tempGame.load(currentFenRef.current); } catch(e) {}
+          try { tempGame.load(isAnalyzingGameRef.current && currentAnalyzeNodeIdRef.current ? nodesRef.current[currentAnalyzeNodeIdRef.current].fen : currentFenRef.current); } catch(e) {}
           const isBlackTurn = tempGame.turn() === 'b';
 
           if (scoreCpMatch) {
             let cp = parseInt(scoreCpMatch[1]);
             if (isBlackTurn) cp = -cp;
-            scoreStr = (cp / 100).toFixed(2);
+            
+            if (cp > 19000) {
+              scoreStr = 'TBW';
+            } else if (cp < -19000) {
+              scoreStr = 'TBL';
+            } else {
+              scoreStr = (cp / 100).toFixed(2);
+            }
           }
           if (scoreMateMatch) {
             let mate = parseInt(scoreMateMatch[1]);
             if (isBlackTurn) mate = -mate;
-            scoreStr = `M${mate}`;
+            if (mate < 0) {
+                scoreStr = `-M${-mate}`;
+            } else {
+                scoreStr = `M${mate}`;
+            }
           }
 
           let sanPv = pvMatch[1];
           try {
               const sanGame = new Chess();
-              try { sanGame.load(currentFenRef.current); } catch(e) {}
+              try { sanGame.load(isAnalyzingGameRef.current && currentAnalyzeNodeIdRef.current ? nodesRef.current[currentAnalyzeNodeIdRef.current].fen : currentFenRef.current); } catch(e) {}
               const rawPv = pvMatch[1].trim().split(' ');
-              const sanMoves = rawPv.map(move => {
+              const newSanMoves = rawPv.map(move => {
                   if (move.length < 4) return move;
                   const moveObj = {
                       from: move.substring(0, 2),
@@ -117,34 +131,35 @@ function App() {
                       return move;
                   }
               });
-              sanPv = sanMoves.join(' ');
+              sanPv = newSanMoves.join(' ');
           } catch(e) {
               console.error('[Engine] Failed to translate PV to SAN', e);
           }
 
-          setPvLines(prev => ({
-            ...prev,
+          latestPvLinesRef.current = {
+            ...latestPvLinesRef.current,
             [multipv]: {
               depth: depthMatch[1],
               score: scoreStr,
               pv: pvMatch[1],
               san: sanPv
             }
+          };
+          if (!isAnalyzingGameRef.current) {
+             setPvLines(latestPvLinesRef.current);
+          }
+        }
+      } else if (msg.startsWith('bestmove')) {
+        if (isAnalyzingGameRef.current && currentAnalyzeNodeIdRef.current) {
+          setNodes(prev => ({
+            ...prev,
+            [currentAnalyzeNodeIdRef.current]: {
+              ...prev[currentAnalyzeNodeIdRef.current],
+              pvLines: { ...latestPvLinesRef.current }
+            }
           }));
+          processNextAnalysisNode();
         }
-      } else if (msg.startsWith('info string Explain:')) {
-        try {
-            console.log(`[Engine Explain] Received raw factors:`, msg);
-            const jsonStr = msg.replace('info string Explain:', '').trim();
-            const data = JSON.parse(jsonStr);
-            setExplainData(data);
-        } catch (e) {
-            console.error('[Engine Explain] Failed to parse Explain JSON', e);
-        }
-      } else if (msg.startsWith('info string Coach:')) {
-        const coachMsg = msg.replace('info string Coach:', '').trim();
-        console.log(`[AI Coach] Comment received: ${coachMsg}`);
-        setCoachMessage(coachMsg);
       }
     };
 
@@ -152,6 +167,71 @@ function App() {
       if (wsRef.current) wsRef.current.close();
     };
   }, [multiPvCount]);
+
+  const processNextAnalysisNode = () => {
+    if (analyzeQueueRef.current.length === 0) {
+      // Done analyzing! Now classify moves
+      setIsAnalyzingGame(false);
+      isAnalyzingGameRef.current = false;
+      setNodes(prevNodes => {
+        const nextNodes = { ...prevNodes };
+        // Traverse all nodes that have parents
+        for (let key in nextNodes) {
+          if (nextNodes[key].parentId && nextNodes[nextNodes[key].parentId]) {
+            let parent = nextNodes[nextNodes[key].parentId];
+            let child = nextNodes[key];
+            let annotation = classifyMove(parent, child, child.san);
+            if (annotation) {
+              nextNodes[key] = { ...child, annotation };
+            }
+          }
+        }
+        return nextNodes;
+      });
+      // Resume normal analysis for current node
+      requestAnalysis(nodesRef.current[currentNodeId].fen);
+      return;
+    }
+    const nextId = analyzeQueueRef.current.shift();
+    currentAnalyzeNodeIdRef.current = nextId;
+    setAnalyzeProgress(p => ({ ...p, current: p.total - analyzeQueueRef.current.length }));
+    
+    // Clear old pvLines so they don't leak
+    latestPvLinesRef.current = {};
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(`position fen ${nodesRef.current[nextId].fen}`);
+      wsRef.current.send(`go depth ${analysisDepth}`); // analyze current node
+    }
+  };
+
+  const startFullGameAnalysis = () => {
+    // Collect all nodes in the tree
+    const queue = Object.keys(nodesRef.current);
+    analyzeQueueRef.current = queue;
+    setAnalyzeProgress({ current: 0, total: queue.length });
+    setIsAnalyzingGame(true);
+    isAnalyzingGameRef.current = true;
+    
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send('stop'); // Stop any ongoing background analysis
+        setTimeout(() => {
+            processNextAnalysisNode();
+        }, 100);
+    }
+  };
+
+  const requestAnalysis = (fen) => {
+    if (isAnalyzingGameRef.current) return; // don't interrupt full game analysis
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send('stop');
+      // Set a small delay to ignore old messages and start fresh
+      setTimeout(() => {
+        setPvLines({});
+        wsRef.current.send(`position fen ${fen}`);
+        wsRef.current.send(`go depth ${analysisDepth}`);
+      }, 50);
+    }
+  };
 
   function getMoveOptions(square) {
     const moves = game.moves({ square, verbose: true });
@@ -213,15 +293,7 @@ function App() {
 
     // Reset Engine PVs and request analysis
     setPvLines({});
-    setExplainData(null);
-    setCoachMessage('');
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(`position fen ${game.fen()}`);
-      wsRef.current.send(`go depth ${analysisDepth}`);
-      if (isVisualEngineEnabled) {
-          wsRef.current.send(`explain`);
-      }
-    }
+    requestAnalysis(game.fen());
 
     setMoveFrom('');
     setOptionSquares({});
@@ -305,18 +377,9 @@ function App() {
 
   function jumpTo(id) {
     setCurrentNodeId(id);
+    requestAnalysis(nodes[id].fen);
     setMoveFrom('');
     setOptionSquares({});
-    setPvLines({});
-    setExplainData(null);
-    setCoachMessage('');
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(`position fen ${nodes[id].fen}`);
-      wsRef.current.send(`go depth ${analysisDepth}`);
-      if (isVisualEngineEnabled) {
-          wsRef.current.send(`explain`);
-      }
-    }
   }
 
   function resetGame() {
@@ -336,6 +399,19 @@ function App() {
     });
     setCurrentNodeId('root');
     setIsSetupMode(false);
+    requestAnalysis(setupFenInput);
+  }
+
+  function toggleSetupMode() {
+    if (isSetupMode) {
+      setIsSetupMode(false);
+      requestAnalysis(nodes[currentNodeId].fen); // Resume normal analysis on cancel
+    } else {
+      setIsSetupMode(true);
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send('stop'); // Stop engine while setting up board
+      }
+    }
   }
 
   const renderMoves = (nodeId) => {
@@ -516,7 +592,7 @@ function App() {
 
   // Visual Engine Arrows
   let customArrows = [];
-  if (isVisualEngineEnabled && Object.keys(pvLines).length > 0) {
+  if (Object.keys(pvLines).length > 0) {
       const colors = ['rgba(0, 255, 0, 0.6)', 'rgba(0, 100, 255, 0.6)', 'rgba(255, 165, 0, 0.6)'];
       // sort keys to ensure 1 is first
       const keys = Object.keys(pvLines).sort();
@@ -664,7 +740,7 @@ function App() {
         <div className="glass-panel">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2>Analysis Board</h2>
-            <button onClick={() => setIsSetupMode(!isSetupMode)} style={{ fontSize: '0.8rem', padding: '0.3rem 0.6rem' }}>
+            <button onClick={toggleSetupMode} style={{ fontSize: '0.8rem', padding: '0.3rem 0.6rem' }}>
               {isSetupMode ? 'Cancel Setup' : 'Setup Mode'}
             </button>
           </div>
@@ -693,19 +769,14 @@ function App() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <h2 style={{ margin: 0 }}>Engine Lines (Multi-PV)</h2>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.9rem', color: '#1baca6', cursor: 'pointer' }}>
-                    <input 
-                        type="checkbox" 
-                        checked={isVisualEngineEnabled} 
-                        onChange={(e) => {
-                            setIsVisualEngineEnabled(e.target.checked);
-                            if (e.target.checked && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                                wsRef.current.send(`explain`);
-                            }
-                        }} 
-                    />
-                    Visual Engine & AI Coach
-                </label>
+                <button 
+                  onClick={startFullGameAnalysis} 
+                  disabled={isAnalyzingGame || Object.keys(nodes).length <= 1}
+                  className="modern-button"
+                  style={{ padding: '6px 12px', fontSize: '0.9rem', width: 'fit-content', background: 'rgba(27, 172, 166, 0.2)', border: '1px solid #1baca6' }}
+                >
+                  Analyze Game
+                </button>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#1baca6', backgroundColor: 'rgba(27, 172, 166, 0.1)', padding: '4px 10px', borderRadius: '6px' }}>
@@ -752,10 +823,25 @@ function App() {
               </div>
             ))}
           </div>
-          
-          {isVisualEngineEnabled && <CoachCard coachMessage={coachMessage} explainData={explainData} />}
         </div>
       </div>
+
+      {isAnalyzingGame && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', zIndex: 9999, color: 'white'
+        }}>
+          <h2>Analyzing Game...</h2>
+          <div style={{ width: '300px', height: '10px', background: '#333', borderRadius: '5px', overflow: 'hidden', margin: '20px 0' }}>
+            <div style={{ 
+              width: `${(analyzeProgress.current / analyzeProgress.total) * 100}%`, 
+              height: '100%', background: '#1baca6', transition: 'width 0.3s' 
+            }} />
+          </div>
+          <p>{analyzeProgress.current} / {analyzeProgress.total} moves analyzed</p>
+        </div>
+      )}
     </div>
   );
 }
