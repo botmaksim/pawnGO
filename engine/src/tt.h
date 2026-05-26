@@ -22,8 +22,8 @@ namespace TT {
     void free_table();
     void clear();
     
-    int read_hash_entry(U64 hash_key, int alpha, int beta, int depth, Move& best_move);
-    void write_hash_entry(U64 hash_key, int score, int depth, int hash_flag, Move best_move);
+    int read_hash_entry(U64 hash_key, int alpha, int beta, int depth, int ply, Move& best_move);
+    void write_hash_entry(U64 hash_key, int score, int depth, int ply, int hash_flag, Move best_move);
 }
 
 #endif // TT_H

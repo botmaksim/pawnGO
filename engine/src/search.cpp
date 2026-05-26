@@ -104,64 +104,76 @@ namespace Search {
         if (stopped) return 0;
         nodes++;
 
-        int eval = Evaluation::evaluate_incremental(ply);
-        if (eval >= beta) return beta;
-        if (eval > alpha) alpha = eval;
+        int king_sq = Bitboard::side == WHITE ? Bitboard::lsb(Bitboard::pieceBB[K]) : Bitboard::lsb(Bitboard::pieceBB[k]);
+        bool in_check = MoveGen::is_square_attacked(king_sq, Bitboard::side ^ 1);
+
+        if (!in_check) {
+            int eval = Evaluation::evaluate_incremental(ply);
+            if (eval >= beta) return beta;
+            if (eval > alpha) alpha = eval;
+        }
 
         MoveList move_list;
-        MoveGen::generate_moves(move_list, true);
+        MoveGen::generate_moves(move_list, !in_check);
         sort_moves(move_list, 0, 0, 0); // Need to pass prev_move
+
+        int legal_moves = 0;
 
         for (int i = 0; i < move_list.count; i++) {
             Move move = move_list.moves[i];
-            if (!GET_MOVE_CAPTURE(move)) continue;
+            if (!in_check && !GET_MOVE_CAPTURE(move)) continue;
 
             int tgt = GET_MOVE_TARGET(move);
             int attacker = GET_MOVE_PIECE(move);
             int victim = get_piece_on_square(tgt);
 
             // Basic SEE-like Pruning
-            if (victim != -1 && get_piece_value(attacker) > get_piece_value(victim) && !GET_MOVE_PROMOTED(move)) {
-                if (MoveGen::is_square_attacked(tgt, Bitboard::side ^ 1)) {
-                    // It's a bad capture (e.g. Queen taking Pawn and Pawn is defended)
-                    continue;
-                }
-            }
+            // DISABLED FOR TACTICAL ACCURACY
+            // if (victim != -1 && get_piece_value(attacker) > get_piece_value(victim) && !GET_MOVE_PROMOTED(move)) {
+            //     if (MoveGen::is_square_attacked(tgt, Bitboard::side ^ 1)) {
+            //         continue;
+            //     }
+            // }
 
             // Delta Pruning
-            int margin = 200 + (victim != -1 ? get_piece_value(victim) : 900); 
-            if (eval + margin < alpha && !GET_MOVE_PROMOTED(move)) {
-                continue;
-            }
+            // DISABLED FOR TACTICAL ACCURACY
+            // int margin = 200 + (victim != -1 ? get_piece_value(victim) : 900); 
+            // if (eval + margin < alpha && !GET_MOVE_PROMOTED(move)) {
+            //     continue;
+            // }
 
             COPY_BOARD;
+            if (ply < Evaluation::MAX_PLY - 1) {
+                Evaluation::nnue_stack[ply + 1].accumulator.computedAccumulation = 0;
+            }
             if (!Board::make_move(move, 0, (ply < Evaluation::MAX_PLY - 1) ? &Evaluation::nnue_stack[ply + 1].dirtyPiece : nullptr)) {
                 RESTORE_BOARD;
                 continue;
             }
+            legal_moves++;
             int score = -quiescence(-beta, -alpha, ply + 1);
             RESTORE_BOARD;
 
             if (score >= beta) return beta;
             if (score > alpha) alpha = score;
         }
+
+        if (in_check && legal_moves == 0) {
+            return -31000 + ply;
+        }
+
         return alpha;
     }
 
     int alpha_beta(int depth, int alpha, int beta, int ply, bool do_null, Move prev_move) {
         if (stopped) return 0;
         
-        U64 gen_hash = Zobrist::generate_hash_key();
-        if (Bitboard::hash_key != gen_hash) {
-            std::cout << "info string HASH MISMATCH IN ALPHA_BETA! depth=" << depth << " ply=" << ply << std::endl;
-        }
-        
         int king_sq = Bitboard::side == WHITE ? Bitboard::lsb(Bitboard::pieceBB[K]) : Bitboard::lsb(Bitboard::pieceBB[k]);
         bool in_check = MoveGen::is_square_attacked(king_sq, Bitboard::side ^ 1);
         
         // Check transposition table
         Move hash_move = 0;
-        int tt_score = TT::read_hash_entry(Bitboard::hash_key, alpha, beta, depth, hash_move);
+        int tt_score = TT::read_hash_entry(Bitboard::hash_key, alpha, beta, depth, ply, hash_move);
         if (tt_score != -32000) {
             return tt_score;
         }
@@ -184,8 +196,8 @@ namespace Search {
             
             if (wdl != TB_RESULT_FAILED) {
                 int tb_score = 0;
-                if (wdl == TB_WIN) tb_score = 20000 - ply;
-                else if (wdl == TB_LOSS) tb_score = -20000 + ply;
+                if (wdl == TB_WIN) tb_score = 31000 - ply;
+                else if (wdl == TB_LOSS) tb_score = -31000 + ply;
                 else tb_score = 0;
 
                 // Adjust for mate scores to avoid bounds issues
@@ -195,12 +207,12 @@ namespace Search {
             }
         }
 
+        if (in_check && ply < max_depth + 10) depth++;
+
         if (depth <= 0) {
             return quiescence(alpha, beta, ply);
         }
         nodes++;
-        
-        if (in_check && ply < max_depth + 10) depth++;
 
         int static_eval = 0;
         if (Evaluation::use_nnue && ply < Evaluation::MAX_PLY) {
@@ -245,6 +257,7 @@ namespace Search {
                 
                 if (ply + 1 < Evaluation::MAX_PLY) {
                     Evaluation::nnue_stack[ply + 1].dirtyPiece.dirtyNum = 0;
+                    Evaluation::nnue_stack[ply + 1].accumulator.computedAccumulation = 0;
                 }
                 
                 int R = 3 + depth / 4;
@@ -261,7 +274,7 @@ namespace Search {
             // Do a shallow search to find a hash move
             int d = depth - 2;
             alpha_beta(d, alpha, beta, ply, do_null, prev_move);
-            TT::read_hash_entry(Bitboard::hash_key, alpha, beta, depth, hash_move);
+            TT::read_hash_entry(Bitboard::hash_key, alpha, beta, depth, ply, hash_move);
         }
 
         MoveList move_list;
@@ -291,6 +304,9 @@ namespace Search {
             }
 
             COPY_BOARD;
+            if (ply < Evaluation::MAX_PLY - 1) {
+                Evaluation::nnue_stack[ply + 1].accumulator.computedAccumulation = 0;
+            }
             if (!Board::make_move(move_list.moves[i], 0, (ply < Evaluation::MAX_PLY - 1) ? &Evaluation::nnue_stack[ply + 1].dirtyPiece : nullptr)) {
                 RESTORE_BOARD;
                 continue;
@@ -336,7 +352,7 @@ namespace Search {
             if (stopped) return 0;
 
             if (score >= beta) {
-                TT::write_hash_entry(Bitboard::hash_key, beta, depth, hash_flag_beta, move_list.moves[i]);
+                TT::write_hash_entry(Bitboard::hash_key, beta, depth, ply, hash_flag_beta, move_list.moves[i]);
                 if (is_quiet) {
                     if (ply < 100) {
                         killer_moves[1][ply] = killer_moves[0][ply];
@@ -373,7 +389,7 @@ namespace Search {
             return 0; // Stalemate
         }
 
-        TT::write_hash_entry(Bitboard::hash_key, alpha, depth, hash_flag, best_move);
+        TT::write_hash_entry(Bitboard::hash_key, alpha, depth, ply, hash_flag, best_move);
         return alpha;
     }
 
@@ -479,8 +495,19 @@ namespace Search {
         
         while (depth < max_depth_val) {
             Move best_move = 0;
-            TT::read_hash_entry(current_hash, -32000, 32000, 0, best_move);
+            TT::read_hash_entry(current_hash, -32000, 32000, 0, depth, best_move);
             if (best_move == 0) break;
+            
+            MoveList move_list;
+            MoveGen::generate_moves(move_list, false);
+            bool is_pseudo_legal = false;
+            for (int i = 0; i < move_list.count; i++) {
+                if (move_list.moves[i] == best_move) {
+                    is_pseudo_legal = true;
+                    break;
+                }
+            }
+            if (!is_pseudo_legal) break;
             
             int src = GET_MOVE_SOURCE(best_move);
             int tgt = GET_MOVE_TARGET(best_move);
@@ -638,6 +665,7 @@ namespace Search {
                         
                         COPY_BOARD;
                         Evaluation::nnue_stack[0].accumulator.computedAccumulation = 0;
+                        Evaluation::nnue_stack[1].accumulator.computedAccumulation = 0;
                         if (!Board::make_move(move, 0, &Evaluation::nnue_stack[1].dirtyPiece)) {
                             RESTORE_BOARD;
                             continue;
@@ -678,7 +706,7 @@ namespace Search {
                     excluded_moves.push_back(best_move_this_iteration);
                     global_best_moves[pv_idx] = best_move_this_iteration;
                     
-                    TT::write_hash_entry(Bitboard::hash_key, best_score, current_depth, hash_flag_exact, best_move_this_iteration);
+                    TT::write_hash_entry(Bitboard::hash_key, best_score, current_depth, 0, hash_flag_exact, best_move_this_iteration);
                     
                     std::string pv_line = extract_pv(current_depth);
                     

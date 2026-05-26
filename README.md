@@ -46,7 +46,7 @@ Ensure that the `3-4-5` Syzygy tablebases are located in `engine/3-4-5/`.
 ```bash
 cd server
 npm install
-npm start
+index.js
 ```
 The server will run on `http://localhost:3000` and automatically bind to the compiled C++ engine.
 
@@ -54,7 +54,7 @@ The server will run on `http://localhost:3000` and automatically bind to the com
 ```bash
 cd client
 npm install
-npm run dev
+node index.js
 ```
 The client will be available on `http://localhost:5173`.
 

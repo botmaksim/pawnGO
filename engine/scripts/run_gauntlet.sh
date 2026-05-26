@@ -3,54 +3,47 @@
 # Configuration
 PAWNGO_CMD="/home/maksim/Programming/Projects/pawnGO/engine/build/pawnGO"
 CUTECHESS_CLI="/home/maksim/cutechess-cli/cutechess-cli"
-RESULTS_FILE="gauntlet_results.txt"
+LOG_FILE="tournament.log"
+GAMES_DIR="games"
 
-# Clear previous results
-echo "pawnGO Massive Gauntlet Results" > $RESULTS_FILE
-echo "=================================" >> $RESULTS_FILE
+# Arguments
+SF_LEVEL=${1:-15}   # Default to Stockfish level 5 if not provided
+TC=${2:-"10+0.5"}  # Default to 10s + 0.5s increment if not provided
 
-# Time controls
-time_controls=("10+0.5" "10+1.0" "10+2.0")
+# Setup
+mkdir -p "$GAMES_DIR"
+echo "Starting Tournament: pawnGO vs Stockfish Level $SF_LEVEL" > "$LOG_FILE"
+echo "Time Control: $TC" >> "$LOG_FILE"
+echo "=================================" >> "$LOG_FILE"
 
-# Thread settings
-thread_settings=(1 2)
-
-for threads in "${thread_settings[@]}"; do
-    echo "=================================" | tee -a $RESULTS_FILE
-    echo "Starting Gauntlet with $threads THREADS" | tee -a $RESULTS_FILE
-    echo "=================================" | tee -a $RESULTS_FILE
+for i in {1..10}; do
+    echo "Running Game $i..." | tee -a "$LOG_FILE"
     
-    # Configure pawnGO thread option if supported, else concurrency handles it for independent games
-    pawngo_opt=""
-    if [ $threads -gt 1 ]; then
-        pawngo_opt="option.MultiPV=$threads"
+    # Alternate colors
+    if [ $((i % 2)) -eq 1 ]; then
+        # Game 1, 3, 5... pawnGO is White
+        $CUTECHESS_CLI \
+            -engine name=pawnGO cmd="$PAWNGO_CMD" dir="/home/maksim/Programming/Projects/pawnGO/engine/build" option.MultiPV=1 \
+            -engine name="Stockfish_Level_$SF_LEVEL" cmd=stockfish "option.Skill Level=$SF_LEVEL" \
+            -each proto=uci tc=$TC \
+            -openings file=/home/maksim/Programming/Projects/pawnGO/engine/scripts/openings.pgn format=pgn order=random \
+            -games 1 -rounds 1 \
+            -pgnout "$GAMES_DIR/${i}.pgn" \
+            >> "$LOG_FILE" 2>&1
+    else
+        # Game 2, 4, 6... Stockfish is White
+        $CUTECHESS_CLI \
+            -engine name="Stockfish_Level_$SF_LEVEL" cmd=stockfish "option.Skill Level=$SF_LEVEL" \
+            -engine name=pawnGO cmd="$PAWNGO_CMD" dir="/home/maksim/Programming/Projects/pawnGO/engine/build" option.MultiPV=1 \
+            -each proto=uci tc=$TC \
+            -openings file=/home/maksim/Programming/Projects/pawnGO/engine/scripts/openings.pgn format=pgn order=random \
+            -games 1 -rounds 1 \
+            -pgnout "$GAMES_DIR/${i}.pgn" \
+            >> "$LOG_FILE" 2>&1
     fi
-    
-    for level in {1..10}; do
-        echo "Testing against Stockfish Level $level..." | tee -a $RESULTS_FILE
         
-        for tc in "${time_controls[@]}"; do
-            echo "  Time Control: $tc" | tee -a $RESULTS_FILE
-            
-            # Run cutechess-cli
-            $CUTECHESS_CLI \
-                -engine name=pawnGO cmd=$PAWNGO_CMD $pawngo_opt \
-                -engine name=stockfish$level cmd=stockfish option.Skill\ Level=$level option.Threads=$threads \
-                -each proto=uci tc=$tc \
-                -games 10 -rounds 1 -repeat \
-                -concurrency 4 -ratinginterval 1 \
-                > tmp_result.txt
-            
-            # Extract score
-            score_line=$(grep "Score of pawnGO vs stockfish$level" tmp_result.txt | tail -1)
-            elo_line=$(grep "Elo difference:" tmp_result.txt | tail -1)
-            
-            echo "    $score_line" | tee -a $RESULTS_FILE
-            echo "    $elo_line" | tee -a $RESULTS_FILE
-        done
-        echo "" | tee -a $RESULTS_FILE
-    done
+    echo "Game $i finished. Saved to $GAMES_DIR/${i}.pgn" | tee -a "$LOG_FILE"
 done
 
-rm tmp_result.txt
-echo "Gauntlet Finished!" | tee -a $RESULTS_FILE
+echo "=================================" >> "$LOG_FILE"
+echo "Tournament Completed!" | tee -a "$LOG_FILE"

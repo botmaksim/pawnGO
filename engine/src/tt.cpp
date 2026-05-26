@@ -46,7 +46,7 @@ namespace TT {
         flag = (data >> 48) & 0x3ULL;
     }
 
-    int read_hash_entry(U64 hash_key, int alpha, int beta, int depth, Move& best_move) {
+    int read_hash_entry(U64 hash_key, int alpha, int beta, int depth, int ply, Move& best_move) {
         if (table == nullptr) return -32000;
 
         int index = hash_key % num_entries;
@@ -63,6 +63,8 @@ namespace TT {
 
             int score, entry_depth, flag;
             unpack_data(data, score, entry_depth, flag, best_move);
+            if (score > 19000) score -= ply;
+            if (score < -19000) score += ply;
 
             if (entry_depth >= depth) {
                 if (flag == hash_flag_exact) {
@@ -79,8 +81,10 @@ namespace TT {
         return -32000;
     }
 
-    void write_hash_entry(U64 hash_key, int score, int depth, int hash_flag, Move best_move) {
+    void write_hash_entry(U64 hash_key, int score, int depth, int ply, int hash_flag, Move best_move) {
         if (table == nullptr) return;
+        if (score > 19000) score += ply;
+        if (score < -19000) score -= ply;
 
         int index = hash_key % num_entries;
         TTEntry* entry = &table[index];

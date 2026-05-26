@@ -13,7 +13,12 @@
 #include "evaluation.h"
 #include "syzygy/tbprobe.h"
 
+#include "polyglot.h"
+
 std::ofstream engine_logger("engine.log", std::ios_base::app);
+
+bool UseOwnBook = true;
+std::string BookFile = "../perfect/Perfect2023.bin";
 
 void log(const std::string& msg) {
     if (engine_logger.is_open()) {
@@ -48,6 +53,13 @@ void uciLoop() {
             std::cout << "uciok" << std::endl;
         } else if (line == "isready") {
             std::cout << "readyok" << std::endl;
+        } else if (line.find("setoption name OwnBook value ") != std::string::npos) {
+            std::string val = line.substr(29);
+            UseOwnBook = (val == "true" || val == "1");
+            log("OwnBook set to " + std::to_string(UseOwnBook));
+        } else if (line.find("setoption name BookFile value ") != std::string::npos) {
+            BookFile = line.substr(30);
+            log("BookFile set to " + BookFile);
         } else if (line.find("setoption name MultiPV value") != std::string::npos) {
             size_t val_idx = line.find("value ");
             if (val_idx != std::string::npos) {
@@ -99,11 +111,6 @@ void uciLoop() {
                     }
                     if (matched_move != 0) {
                         Board::make_move(matched_move, 0);
-                        U64 gen_hash = Zobrist::generate_hash_key();
-                        if (Bitboard::hash_key != gen_hash) {
-                            log("HASH MISMATCH! Incremental: " + std::to_string(Bitboard::hash_key) + " Generated: " + std::to_string(gen_hash));
-                            std::cout << "info string HASH MISMATCH!" << std::endl;
-                        }
                     }
                 }
             }
@@ -118,7 +125,37 @@ void uciLoop() {
             if (Evaluation::use_nnue) {
                 std::cout << "Eval (incremental 1): " << Evaluation::evaluate_incremental(1) << std::endl;
             }
+        } else if (line.find("go perft ") == 0) {
+            int depth = std::stoi(line.substr(9));
+            Board::perft_test(depth);
         } else if (line.find("go") == 0) {
+            bool is_game = (line.find("wtime") != std::string::npos || line.find("btime") != std::string::npos || line.find("movetime") != std::string::npos);
+            if (UseOwnBook && !BookFile.empty() && is_game) {
+                Move book_move = Polyglot::get_book_move(BookFile);
+                if (book_move != 0) {
+                    int src = GET_MOVE_SOURCE(book_move);
+                    int tgt = GET_MOVE_TARGET(book_move);
+                    int promoted = GET_MOVE_PROMOTED(book_move);
+                    std::string m_str = "";
+                    m_str += char((src % 8) + 'a');
+                    m_str += char((src / 8) + '1');
+                    m_str += char((tgt % 8) + 'a');
+                    m_str += char((tgt / 8) + '1');
+                    if (promoted) {
+                        int p_type = promoted % 6;
+                        if (p_type == 1) m_str += "n";
+                        if (p_type == 2) m_str += "b";
+                        if (p_type == 3) m_str += "r";
+                        if (p_type == 4) m_str += "q";
+                    }
+                    std::cout << "info string Book move" << std::endl;
+                    std::cout << "info depth 1 score cp 0 pv " << m_str << std::endl;
+                    std::cout << "bestmove " << m_str << std::endl;
+                    log("Book move found: " + m_str);
+                    continue; // Skip the search
+                }
+            }
+            
             // Stop any ongoing search first
             Search::stopped = true;
             if (search_thread.joinable()) search_thread.join();
@@ -217,7 +254,26 @@ int main() {
     Zobrist::init();
     TT::init(64);
     Search::init_lmr_table();
-    Evaluation::init_nnue("../src/nnue/nn-62ef826d1a6d.nnue");
+    const char* nnue_paths[] = {
+        "../src/nnue/nn-62ef826d1a6d.nnue",
+        "src/nnue/nn-62ef826d1a6d.nnue",
+        "nnue/nn-62ef826d1a6d.nnue",
+        "nn-62ef826d1a6d.nnue"
+    };
+    
+    bool loaded = false;
+    for (int i = 0; i < 4; i++) {
+        std::ifstream f(nnue_paths[i]);
+        if (f.good()) {
+            Evaluation::init_nnue(nnue_paths[i]);
+            loaded = true;
+            break;
+        }
+    }
+    
+    if (!loaded) {
+        std::cout << "Engine OUT: Failed to load NNUE from any standard path." << std::endl;
+    }
     if (tb_init("../3-4-5")) {
         log("Syzygy Tablebases automatically initialized from ../3-4-5 (Max pieces: " + std::to_string(TB_LARGEST) + ")");
     }
