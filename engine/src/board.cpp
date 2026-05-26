@@ -35,10 +35,12 @@ namespace Board {
         int enpassant = GET_MOVE_ENPASSANT(move);
         int castling = GET_MOVE_CASTLING(move);
 
+        // 1. Remove old enpassant and castle keys from hash
+        if (Bitboard::enpassant != no_sq) Bitboard::hash_key ^= Zobrist::enpassant_keys[Bitboard::enpassant];
+        Bitboard::hash_key ^= Zobrist::castle_keys[Bitboard::castle];
+
         if (dp) {
             dp->dirtyNum = 0;
-            // King must be first if it moved!
-            // Wait, we add the moving piece first. If it's King, it's at index 0.
             dp->pc[0] = Evaluation::nnue_piece_map[piece];
             dp->from[0] = source;
             dp->to[0] = target;
@@ -47,6 +49,10 @@ namespace Board {
 
         Bitboard::pop_bit(Bitboard::pieceBB[piece], source);
         Bitboard::set_bit(Bitboard::pieceBB[piece], target);
+        
+        // Hash piece move
+        Bitboard::hash_key ^= Zobrist::piece_keys[piece][source];
+        Bitboard::hash_key ^= Zobrist::piece_keys[piece][target];
 
         if (capture) {
             int start_piece, end_piece;
@@ -61,11 +67,14 @@ namespace Board {
                     break;
                 }
             }
-            if (dp && captured_piece != -1) {
-                dp->pc[dp->dirtyNum] = Evaluation::nnue_piece_map[captured_piece];
-                dp->from[dp->dirtyNum] = target;
-                dp->to[dp->dirtyNum] = 64; // removed
-                dp->dirtyNum++;
+            if (captured_piece != -1) {
+                Bitboard::hash_key ^= Zobrist::piece_keys[captured_piece][target];
+                if (dp) {
+                    dp->pc[dp->dirtyNum] = Evaluation::nnue_piece_map[captured_piece];
+                    dp->from[dp->dirtyNum] = target;
+                    dp->to[dp->dirtyNum] = 64; // removed
+                    dp->dirtyNum++;
+                }
             }
         }
 
@@ -73,12 +82,11 @@ namespace Board {
             Bitboard::pop_bit(Bitboard::pieceBB[piece], target);
             Bitboard::set_bit(Bitboard::pieceBB[promoted], target);
             
+            Bitboard::hash_key ^= Zobrist::piece_keys[piece][target];
+            Bitboard::hash_key ^= Zobrist::piece_keys[promoted][target];
+            
             if (dp) {
-                // The pawn didn't land on target, it disappeared from source.
-                // Wait, dp->pc[0] was set to pawn, from source to target.
-                // We should change it to: pawn from source to 64, promoted piece from 64 to target.
                 dp->to[0] = 64; // Pawn disappears
-                
                 dp->pc[dp->dirtyNum] = Evaluation::nnue_piece_map[promoted];
                 dp->from[dp->dirtyNum] = 64; // Promoted piece appears
                 dp->to[dp->dirtyNum] = target;
@@ -90,6 +98,8 @@ namespace Board {
             int ep_pawn_sq = (Bitboard::side == WHITE) ? (target - 8) : (target + 8);
             int ep_pawn = (Bitboard::side == WHITE) ? p : P;
             Bitboard::pop_bit(Bitboard::pieceBB[ep_pawn], ep_pawn_sq);
+            
+            Bitboard::hash_key ^= Zobrist::piece_keys[ep_pawn][ep_pawn_sq];
             
             if (dp) {
                 dp->pc[dp->dirtyNum] = Evaluation::nnue_piece_map[ep_pawn];
@@ -116,6 +126,10 @@ namespace Board {
             if (rook_sq != -1) {
                 Bitboard::pop_bit(Bitboard::pieceBB[r_piece], rook_sq); 
                 Bitboard::set_bit(Bitboard::pieceBB[r_piece], new_rook_sq);
+                
+                Bitboard::hash_key ^= Zobrist::piece_keys[r_piece][rook_sq];
+                Bitboard::hash_key ^= Zobrist::piece_keys[r_piece][new_rook_sq];
+                
                 if (dp) {
                     dp->pc[dp->dirtyNum] = Evaluation::nnue_piece_map[r_piece];
                     dp->from[dp->dirtyNum] = rook_sq;
@@ -128,6 +142,11 @@ namespace Board {
         Bitboard::castle &= castling_rights[source];
         Bitboard::castle &= castling_rights[target];
 
+        // 2. Add new enpassant, castle, and side keys to hash
+        if (Bitboard::enpassant != no_sq) Bitboard::hash_key ^= Zobrist::enpassant_keys[Bitboard::enpassant];
+        Bitboard::hash_key ^= Zobrist::castle_keys[Bitboard::castle];
+        Bitboard::hash_key ^= Zobrist::side_key;
+
         Bitboard::occupancies[WHITE] = 0ULL;
         Bitboard::occupancies[BLACK] = 0ULL;
         Bitboard::occupancies[BOTH] = 0ULL;
@@ -137,10 +156,7 @@ namespace Board {
         Bitboard::occupancies[BOTH] |= Bitboard::occupancies[WHITE];
         Bitboard::occupancies[BOTH] |= Bitboard::occupancies[BLACK];
 
-        Bitboard::side ^= 1; // Change side before hashing
-
-        // Update Hash Key (full recalculation for simplicity)
-        Bitboard::hash_key = Zobrist::generate_hash_key();
+        Bitboard::side ^= 1; // Change side
 
         // Check if king is in check after our move
         // Since we already changed side, if side is BLACK, White just moved, so check White king (K)

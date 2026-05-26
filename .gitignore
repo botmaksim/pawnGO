@@ -29,3 +29,7 @@ npm-debug.log*
 # Syzygy Tables
 syzygy_tables/
 engine/3-4-5/
+
+# Tournament
+engine/scripts/gauntlet_results.txt
+engine/scripts/tmp_result.txt

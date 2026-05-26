@@ -151,6 +151,11 @@ namespace Search {
     int alpha_beta(int depth, int alpha, int beta, int ply, bool do_null, Move prev_move) {
         if (stopped) return 0;
         
+        U64 gen_hash = Zobrist::generate_hash_key();
+        if (Bitboard::hash_key != gen_hash) {
+            std::cout << "info string HASH MISMATCH IN ALPHA_BETA! depth=" << depth << " ply=" << ply << std::endl;
+        }
+        
         int king_sq = Bitboard::side == WHITE ? Bitboard::lsb(Bitboard::pieceBB[K]) : Bitboard::lsb(Bitboard::pieceBB[k]);
         bool in_check = MoveGen::is_square_attacked(king_sq, Bitboard::side ^ 1);
         
@@ -195,7 +200,7 @@ namespace Search {
         }
         nodes++;
         
-        if (in_check) depth++;
+        if (in_check && ply < max_depth + 10) depth++;
 
         int static_eval = 0;
         if (Evaluation::use_nnue && ply < Evaluation::MAX_PLY) {
@@ -232,8 +237,11 @@ namespace Search {
             if (has_pieces) {
                 COPY_BOARD;
                 Bitboard::side ^= 1;
+                Bitboard::hash_key ^= Zobrist::side_key;
+                if (Bitboard::enpassant != no_sq) {
+                    Bitboard::hash_key ^= Zobrist::enpassant_keys[Bitboard::enpassant];
+                }
                 Bitboard::enpassant = no_sq;
-                Bitboard::hash_key = Zobrist::generate_hash_key();
                 
                 if (ply + 1 < Evaluation::MAX_PLY) {
                     Evaluation::nnue_stack[ply + 1].dirtyPiece.dirtyNum = 0;
@@ -300,6 +308,16 @@ namespace Search {
                     int d = std::min(depth, 63);
                     int m = std::min(legal_moves, 63);
                     R = LMR_table[d][m];
+                    
+                    int src = GET_MOVE_SOURCE(move_list.moves[i]);
+                    int tgt = GET_MOVE_TARGET(move_list.moves[i]);
+                    int history_score = history_table[Bitboard::side][src][tgt];
+                    
+                    // History-based LMR adjustment
+                    if (history_score > 4000) R -= 2;
+                    else if (history_score > 1000) R -= 1;
+                    
+                    if (R < 0) R = 0;
                     if (R > depth - 1) R = depth - 1;
                 }
                 
@@ -508,14 +526,14 @@ namespace Search {
     };
 
     void search_position(int depth) {
-        if (Bitboard::current_fen != "") {
-            Bitboard::parse_fen(Bitboard::current_fen);
-        }
+        // We do NOT parse current_fen here, because main.cpp already sets up the board and applies moves!
         clear_heuristics();
         
         max_depth = depth;
         stopped = false;
         nodes = 0;
+        
+        Evaluation::nnue_stack[0].accumulator.computedAccumulation = 0;
 
         MoveList move_list;
         MoveGen::generate_moves(move_list);
@@ -533,6 +551,42 @@ namespace Search {
         if (legal_moves.empty()) {
             std::cout << "bestmove 0000" << std::endl;
             return;
+        }
+
+        uint64_t white_pieces = Bitboard::pieceBB[P] | Bitboard::pieceBB[N] | Bitboard::pieceBB[B] | Bitboard::pieceBB[R] | Bitboard::pieceBB[Q] | Bitboard::pieceBB[K];
+        uint64_t black_pieces = Bitboard::pieceBB[p] | Bitboard::pieceBB[n] | Bitboard::pieceBB[b] | Bitboard::pieceBB[r] | Bitboard::pieceBB[q] | Bitboard::pieceBB[k];
+        int num_pieces = __builtin_popcountll(white_pieces | black_pieces);
+
+        if (TB_LARGEST > 0 && num_pieces <= TB_LARGEST) {
+            uint64_t kings = Bitboard::pieceBB[K] | Bitboard::pieceBB[k];
+            uint64_t queens = Bitboard::pieceBB[Q] | Bitboard::pieceBB[q];
+            uint64_t rooks = Bitboard::pieceBB[R] | Bitboard::pieceBB[r];
+            uint64_t bishops = Bitboard::pieceBB[B] | Bitboard::pieceBB[b];
+            uint64_t knights = Bitboard::pieceBB[N] | Bitboard::pieceBB[n];
+            uint64_t pawns = Bitboard::pieceBB[P] | Bitboard::pieceBB[p];
+            unsigned ep = Bitboard::enpassant != no_sq ? Bitboard::enpassant : 0;
+            
+            unsigned root_res = tb_probe_root(white_pieces, black_pieces, kings, queens, rooks, bishops, knights, pawns, 0, 0, ep, Bitboard::side == WHITE, NULL);
+            if (root_res != TB_RESULT_FAILED) {
+                unsigned from = TB_GET_FROM(root_res);
+                unsigned to = TB_GET_TO(root_res);
+                unsigned promotes = TB_GET_PROMOTES(root_res);
+                
+                std::string m_str = "";
+                m_str += char((from % 8) + 'a');
+                m_str += char((from / 8) + '1');
+                m_str += char((to % 8) + 'a');
+                m_str += char((to / 8) + '1');
+                if (promotes) {
+                    if (promotes == TB_PROMOTES_KNIGHT) m_str += "n";
+                    else if (promotes == TB_PROMOTES_BISHOP) m_str += "b";
+                    else if (promotes == TB_PROMOTES_ROOK) m_str += "r";
+                    else if (promotes == TB_PROMOTES_QUEEN) m_str += "q";
+                }
+                
+                std::cout << "bestmove " << m_str << std::endl;
+                return;
+            }
         }
 
         for(int i=0; i<12; i++) root_pBB[i] = Bitboard::pieceBB[i];
