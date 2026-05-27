@@ -175,7 +175,21 @@ namespace Evaluation {
         return std::max(0, phase);
     }
 
-    thread_local NNUEdata nnue_stack[MAX_PLY];
+    thread_local NNUEdata* nnue_stack = nullptr;
+
+    void allocate_nnue_stack() {
+        if (!nnue_stack) {
+            if (posix_memalign((void**)&nnue_stack, 64, sizeof(NNUEdata) * MAX_PLY) != 0) {
+                std::cerr << "Failed to allocate 64-byte aligned memory for NNUE stack" << std::endl;
+                exit(1);
+            }
+            // Zero initialize
+            for (int i = 0; i < MAX_PLY; i++) {
+                nnue_stack[i].dirtyPiece.dirtyNum = 0;
+                nnue_stack[i].accumulator.computedAccumulation = 0;
+            }
+        }
+    }
 
     int evaluate_incremental(int ply) {
         if (!use_nnue || ply >= MAX_PLY) return evaluate();
@@ -189,16 +203,32 @@ namespace Evaluation {
         pieces[1] = 7; // bking
         squares[1] = Bitboard::lsb(Bitboard::pieceBB[k]);
 
-        for (int p = P; p <= k; p++) {
-            if (p == K || p == k) continue;
-            
-            U64 bb = Bitboard::pieceBB[p];
-            while (bb) {
-                int sq = Bitboard::lsb(bb);
-                pieces[index] = nnue_piece_map[p];
-                squares[index] = sq;
-                index++;
-                Bitboard::pop_bit(bb, sq);
+        bool need_full = true;
+        if (ply == 0) {
+            need_full = true;
+        } else if (nnue_stack[ply].dirtyPiece.dirtyNum == 0) {
+            need_full = false;
+        } else if (ply >= 1 && nnue_stack[ply - 1].accumulator.computedAccumulation == 1) {
+            int moved_pc = nnue_stack[ply].dirtyPiece.pc[0];
+            if (moved_pc != 1 && moved_pc != 7) need_full = false;
+        } else if (ply >= 2 && nnue_stack[ply - 2].accumulator.computedAccumulation == 1) {
+            int moved_pc1 = nnue_stack[ply].dirtyPiece.pc[0];
+            int moved_pc2 = nnue_stack[ply - 1].dirtyPiece.pc[0];
+            if (moved_pc1 != 1 && moved_pc1 != 7 && moved_pc2 != 1 && moved_pc2 != 7) need_full = false;
+        }
+
+        if (need_full) {
+            for (int p = P; p <= k; p++) {
+                if (p == K || p == k) continue;
+                
+                U64 bb = Bitboard::pieceBB[p];
+                while (bb) {
+                    int sq = Bitboard::lsb(bb);
+                    pieces[index] = nnue_piece_map[p];
+                    squares[index] = sq;
+                    index++;
+                    Bitboard::pop_bit(bb, sq);
+                }
             }
         }
         pieces[index] = 0; // End marker
@@ -272,8 +302,9 @@ namespace Evaluation {
             int pType = pc - P;
             while (bb) {
                 int sq = Bitboard::lsb(bb);
-                mg_score[WHITE] += mg_value[pType] + mg_psts[pType][sq];
-                eg_score[WHITE] += eg_value[pType] + eg_psts[pType][sq];
+                int mirrored_sq = sq ^ 56;
+                mg_score[WHITE] += mg_value[pType] + mg_psts[pType][mirrored_sq];
+                eg_score[WHITE] += eg_value[pType] + eg_psts[pType][mirrored_sq];
                 Bitboard::pop_bit(bb, sq);
             }
         }
@@ -284,9 +315,8 @@ namespace Evaluation {
             int pType = pc - p;
             while (bb) {
                 int sq = Bitboard::lsb(bb);
-                int mirrored_sq = sq ^ 56; // Mirror for black
-                mg_score[BLACK] += mg_value[pType] + mg_psts[pType][mirrored_sq];
-                eg_score[BLACK] += eg_value[pType] + eg_psts[pType][mirrored_sq];
+                mg_score[BLACK] += mg_value[pType] + mg_psts[pType][sq];
+                eg_score[BLACK] += eg_value[pType] + eg_psts[pType][sq];
                 Bitboard::pop_bit(bb, sq);
             }
         }

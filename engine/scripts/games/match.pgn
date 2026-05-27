@@ -1,0 +1,102 @@
+[Event "?"]
+[Site "?"]
+[Date "2026.05.27"]
+[Round "1"]
+[White "pawnGO"]
+[Black "Stockfish_Level_5"]
+[Result "0-1"]
+[ECO "A04"]
+[GameDuration "00:00:05"]
+[GameEndTime "2026-05-27T12:11:54.712 +03"]
+[GameStartTime "2026-05-27T12:11:49.172 +03"]
+[Opening "Reti Opening"]
+[PlyCount "52"]
+[TimeControl "1+0.1"]
+
+1. Nf3 e6 {-0.20/12 0.24s} 2. d4 c5 {-0.25/12 0.26s} 3. Na3 Nc6 {+0.62/9 0.14s}
+4. Ng1 Nf6 {+2.54/9 0.10s} 5. Nf3 h6 {+1.55/9 0.062s} 6. Ng1
+Nxd4 {+3.36/10 0.086s} 7. Nh3 d5 {+3.27/12 0.086s} 8. Ng1 a6 {+3.71/14 0.15s}
+9. Nh3 e5 {+3.95/14 0.26s} 10. Ng1 Be7 {+4.71/16 0.27s} 11. Nh3
+Nf5 {+4.80/13 0.12s} 12. Nf4 g6 {+6.55/14 0.097s} 13. Nd3 e4 {+4.92/12 0.045s}
+14. Nb5 d4 {+6.76/15 0.20s} 15. Ne5 axb5 {+6.21/13 0.15s} 16. Ng4
+Be6 {+9.07/11 0.019s} 17. Ne5 Nd5 {+7.70/11 0.032s} 18. Ng4 c4 {+7.82/16 0.31s}
+19. Nf6+ Nxf6 {+8.66/17 0.17s} 20. h4 Kf8 {+9.67/14 0.089s} 21. Be3
+Qa5+ {+10.39/11 0.020s} 22. b4 Bxb4+ {+11.14/14 0.028s} 23. Bd2
+e3 {+11.76/14 0.067s} 24. c3 Bxc3 {+M17/16 0.098s} 25. Rb1 Ne4 {+M3/19 0.072s}
+26. Rb2 exf2# {+M1/32 0.035s, Black mates} 0-1
+
+[Event "?"]
+[Site "?"]
+[Date "2026.05.27"]
+[Round "1"]
+[White "Stockfish_Level_5"]
+[Black "pawnGO"]
+[Result "1-0"]
+[ECO "A05"]
+[GameDuration "00:00:03"]
+[GameEndTime "2026-05-27T12:11:53.210 +03"]
+[GameStartTime "2026-05-27T12:11:49.230 +03"]
+[Opening "Reti Opening"]
+[PlyCount "35"]
+[TimeControl "1+0.1"]
+
+1. Nf3 {+0.36/11 0.24s} Nf6 2. c4 {+0.26/10 0.11s} g5 3. Ng1 {+1.40/11 0.27s} h6
+4. Nc3 {+0.22/9 0.096s} e5 5. e3 {+0.20/11 0.25s} Nh5 6. Qxh5 {+4.60/11 0.051s}
+Nc6 7. Qd1 {+4.65/14 0.24s} Ne7 8. d3 {+5.09/12 0.084s} f6
+9. Be2 {+7.87/10 0.048s} d5 10. Bd2 {+5.91/14 0.26s} Ng6
+11. Bh5 {+6.19/12 0.13s} Bd7 12. h3 {+7.92/12 0.039s} Rc8
+13. Bxg6+ {+8.41/12 0.061s} Ke7 14. Nxd5+ {+8.14/16 0.27s} Kd6
+15. Bc3 {+8.59/16 0.18s} Bc6 16. Bb4+ {+M5/12 0.018s} Ke6
+17. Qg4+ {+M3/15 0.060s} f5 18. Qxf5# {+M1/18 0.069s, White mates} 1-0
+
+[Event "?"]
+[Site "?"]
+[Date "2026.05.27"]
+[Round "2"]
+[White "pawnGO"]
+[Black "Stockfish_Level_5"]
+[Result "0-1"]
+[ECO "C41"]
+[GameDuration "00:00:06"]
+[GameEndTime "2026-05-27T12:11:59.312 +03"]
+[GameStartTime "2026-05-27T12:11:53.211 +03"]
+[Opening "Philidor's defense"]
+[PlyCount "58"]
+[TimeControl "1+0.1"]
+
+1. e4 e5 {-0.30/11 0.26s} 2. Nf3 d6 {-0.30/12 0.22s} 3. Nc3 c5 {-0.25/10 0.080s}
+4. Bc4 Nc6 {-0.25/11 0.26s} 5. Ba6 bxa6 {+5.49/10 0.037s} 6. Na4
+Rb8 {+5.43/16 0.26s} 7. Nd4 exd4 {+6.92/14 0.065s} 8. O-O h5 {+6.64/15 0.11s}
+9. e5 dxe5 {+6.92/16 0.17s} 10. h4 Qxh4 {+7.78/15 0.15s} 11. Nc3
+Qd8 {+8.74/15 0.075s} 12. Ne4 Rb5 {+7.99/16 0.25s} 13. a3 Nf6 {+8.17/13 0.049s}
+14. Ng5 d3 {+7.96/15 0.21s} 15. Ne6 Bxe6 {+10.15/13 0.012s} 16. Rb1
+g5 {+10.26/15 0.096s} 17. a4 Rb4 {+9.78/16 0.18s} 18. Ra1 Be7 {+10.43/15 0.11s}
+19. Ra2 Qc8 {+10.89/15 0.10s} 20. Re1 a5 {+10.68/18 0.21s} 21. Re4
+Rh7 {+12.04/14 0.056s} 22. Rc4 Bxc4 {+11.49/13 0.032s} 23. Qe1
+Kd8 {+11.31/17 0.14s} 24. Qd1 Bd5 {+11.60/14 0.062s} 25. Ra3
+dxc2 {+11.10/16 0.18s} 26. Rf3 cxd1=R+ {+M7/17 0.023s} 27. Kh2
+Ng4+ {+M5/13 0.027s} 28. Kg3 h4+ {+M3/76 0.024s} 29. Kh3
+Rh1# {+M1/106 0.030s, Black mates} 0-1
+
+[Event "?"]
+[Site "?"]
+[Date "2026.05.27"]
+[Round "2"]
+[White "Stockfish_Level_5"]
+[Black "pawnGO"]
+[Result "1-0"]
+[ECO "C26"]
+[GameDuration "00:00:02"]
+[GameEndTime "2026-05-27T12:11:56.971 +03"]
+[GameStartTime "2026-05-27T12:11:54.714 +03"]
+[Opening "Vienna"]
+[PlyCount "21"]
+[TimeControl "1+0.1"]
+[Variation "Falkbeer variation"]
+
+1. e4 {+0.36/11 0.24s} e5 2. Nc3 {+0.52/11 0.21s} Nf6 3. d4 {+0.42/11 0.16s} Ng4
+4. Qxg4 {+4.36/13 0.076s} h5 5. Qg3 {+5.29/15 0.20s} Na6
+6. Nf3 {+6.68/13 0.070s} Nb8 7. Bg5 {+6.71/12 0.087s} Na6
+8. Bxd8 {+8.33/11 0.030s} Nb4 9. Bg5 {+8.94/16 0.15s} h4
+10. Qxe5+ {+M3/17 0.12s} Be7 11. Qxe7# {+M1/17 0.14s, White mates} 1-0
+

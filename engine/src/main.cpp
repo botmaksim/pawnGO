@@ -3,7 +3,10 @@
 #include <sstream>
 #include <fstream>
 #include <thread>
+#include <algorithm>
+#include <random>
 #include <chrono>
+#include <array>
 #include "bitboard.h"
 #include "movegen.h"
 #include "board.h"
@@ -19,6 +22,7 @@ std::ofstream engine_logger("engine.log", std::ios_base::app);
 
 bool UseOwnBook = true;
 std::string BookFile = "../perfect/Perfect2023.bin";
+int game_ply = 0;
 
 void log(const std::string& msg) {
     if (engine_logger.is_open()) {
@@ -33,6 +37,7 @@ void log(const std::string& msg) {
 void uciLoop() {
     std::string line;
     std::thread search_thread;
+    int wtime = 0;
 
     log("UCI Loop started.");
 
@@ -50,6 +55,11 @@ void uciLoop() {
         } else if (line == "uci") {
             std::cout << "id name pawnGO 1.0" << std::endl;
             std::cout << "id author Maksim" << std::endl;
+            std::cout << "option name Threads type spin default 4 min 1 max 256" << std::endl;
+            std::cout << "option name MultiPV type spin default 1 min 1 max 500" << std::endl;
+            std::cout << "option name OwnBook type check default true" << std::endl;
+            std::cout << "option name BookFile type string default ../perfect/Perfect2023.bin" << std::endl;
+            std::cout << "option name SyzygyPath type string default <empty>" << std::endl;
             std::cout << "uciok" << std::endl;
         } else if (line == "isready") {
             std::cout << "readyok" << std::endl;
@@ -66,6 +76,13 @@ void uciLoop() {
                 Search::multi_pv = std::stoi(line.substr(val_idx + 6));
                 log("Multi-PV set to " + std::to_string(Search::multi_pv));
             }
+        } else if (line.find("setoption name Threads value") != std::string::npos) {
+            size_t val_idx = line.find("value ");
+            if (val_idx != std::string::npos) {
+                int threads = std::stoi(line.substr(val_idx + 6));
+                Search::init_threads(threads);
+                log("Threads set to " + std::to_string(threads));
+            }
         } else if (line.find("position") == 0) {
             std::string startpos = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
             size_t fen_idx = line.find("fen ");
@@ -75,15 +92,19 @@ void uciLoop() {
                 std::string fen = line.substr(fen_idx + 4);
                 if (moves_idx != std::string::npos) fen = line.substr(fen_idx + 4, moves_idx - (fen_idx + 4));
                 Bitboard::parse_fen(fen);
+                game_ply = 0; // If custom FEN, assume ply 0 or handle accordingly. Assuming 0 is safe for now.
             } else if (line.find("startpos") != std::string::npos) {
                 Bitboard::parse_fen(startpos);
+                game_ply = 0;
             }
             
             if (moves_idx != std::string::npos) {
                 std::string moves_str = line.substr(moves_idx + 6);
                 std::stringstream ss(moves_str);
                 std::string move_str;
+                game_ply = 0; // Reset game ply when parsing moves
                 while (ss >> move_str) {
+                    game_ply++;
                     MoveList move_list;
                     MoveGen::generate_moves(move_list);
                     Move matched_move = 0;
@@ -119,7 +140,13 @@ void uciLoop() {
             Board::perft_test(depth);
         } else if (line == "d") {
             Bitboard::print_board();
+        } else if (line == "test_q") {
+            MoveList ml;
+            MoveGen::generate_moves(ml, true);
+            std::cout << "Captures count: " << ml.count << std::endl;
+
         } else if (line == "eval") {
+            Evaluation::allocate_nnue_stack();
             std::cout << "Eval (evaluate): " << Evaluation::evaluate() << std::endl;
             std::cout << "Eval (incremental 0): " << Evaluation::evaluate_incremental(0) << std::endl;
             if (Evaluation::use_nnue) {
@@ -130,8 +157,32 @@ void uciLoop() {
             Board::perft_test(depth);
         } else if (line.find("go") == 0) {
             bool is_game = (line.find("wtime") != std::string::npos || line.find("btime") != std::string::npos || line.find("movetime") != std::string::npos);
-            if (UseOwnBook && !BookFile.empty() && is_game) {
-                Move book_move = Polyglot::get_book_move(BookFile);
+            if (UseOwnBook && !BookFile.empty() && is_game && game_ply <= 4) {
+                auto b_moves = Polyglot::get_all_book_moves(BookFile);
+                Move book_move = 0;
+                if (!b_moves.empty()) {
+                    std::sort(b_moves.begin(), b_moves.end(), [](const std::pair<Move, int>& a, const std::pair<Move, int>& b) {
+                        return a.second > b.second;
+                    });
+                    
+                    int best_weight = b_moves[0].second;
+                    std::vector<Move> best_moves;
+                    for (auto& bm : b_moves) {
+                        if (bm.second >= best_weight / 2 || best_moves.size() < 3) {
+                            best_moves.push_back(bm.first);
+                        } else {
+                            break;
+                        }
+                    }
+                    
+                    if (!best_moves.empty()) {
+                        std::random_device rd;
+                        std::mt19937 gen(rd());
+                        std::uniform_int_distribution<> dis(0, best_moves.size() - 1);
+                        book_move = best_moves[dis(gen)];
+                    }
+                }
+                
                 if (book_move != 0) {
                     int src = GET_MOVE_SOURCE(book_move);
                     int tgt = GET_MOVE_TARGET(book_move);
@@ -149,9 +200,8 @@ void uciLoop() {
                         if (p_type == 4) m_str += "q";
                     }
                     std::cout << "info string Book move" << std::endl;
-                    std::cout << "info depth 1 score cp 0 pv " << m_str << std::endl;
                     std::cout << "bestmove " << m_str << std::endl;
-                    log("Book move found: " + m_str);
+                    log("Book move played automatically: " + m_str);
                     continue; // Skip the search
                 }
             }
@@ -193,9 +243,9 @@ void uciLoop() {
             int current_search_id = search_id;
 
             // Capture the current main thread's board state
-            U64 t_pieceBB[12];
+            std::array<U64, 12> t_pieceBB;
             for (int i = 0; i < 12; i++) t_pieceBB[i] = Bitboard::pieceBB[i];
-            U64 t_occ[3];
+            std::array<U64, 3> t_occ;
             for (int i = 0; i < 3; i++) t_occ[i] = Bitboard::occupancies[i];
             int t_side = Bitboard::side;
             int t_ep = Bitboard::enpassant;

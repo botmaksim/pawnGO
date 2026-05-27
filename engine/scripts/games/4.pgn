@@ -1,0 +1,53 @@
+[Event "?"]
+[Site "?"]
+[Date "2026.05.28"]
+[Round "1"]
+[White "Stockfish_Level_10"]
+[Black "pawnGO"]
+[Result "1-0"]
+[ECO "A00"]
+[GameDuration "00:00:37"]
+[GameEndTime "2026-05-28T00:37:33.014 +03"]
+[GameStartTime "2026-05-28T00:36:55.144 +03"]
+[Opening "Dunst (Sleipner, Heinrichsen) Opening"]
+[PlyCount "57"]
+[TimeControl "10+0.5"]
+
+1. Nc3 {book} f6 {book} 2. f4 {book} g5 {book} 3. e4 {+2.69/18 2.1s}
+e6 {-5.94/17 0.60s} 4. Qh5+ {+3.31/18 1.0s} Ke7 {-6.77/25 0.60s}
+5. fxg5 {+3.29/18 0.92s} d6 {-6.53/17 0.59s} 6. d4 {+3.69/18 1.3s}
+Bg7 {-6.53/16 0.60s} 7. gxf6+ {+4.04/16 1.2s} Nxf6 {-7.51/16 0.59s}
+8. Qh4 {+4.06/19 5.0s} Nc6 {-6.11/12 0.60s} 9. Nf3 {+4.04/13 0.50s}
+Nb4 {-6.07/15 0.59s} 10. Bd3 {+4.30/18 1.6s} Ke8 {-6.17/14 0.59s}
+11. e5 {+4.30/16 0.69s} Nxd3+ {-8.26/14 0.58s} 12. cxd3 {+4.45/15 0.22s}
+Ng8 {-8.84/15 0.58s} 13. Bg5 {+4.58/16 0.77s} Qd7 {-8.13/14 0.58s}
+14. exd6 {+4.70/12 0.28s} cxd6 {-9.90/17 0.57s} 15. Ne4 {+4.67/16 0.22s}
+Ne7 {-9.48/18 0.57s} 16. Qh5+ {+5.49/16 0.47s} Kf8 {-8.46/19 0.56s}
+17. O-O {+5.68/16 0.98s} Nf5 {-9.00/10 0.56s} 18. g4 {+5.35/13 0.19s}
+Kg8 {-9.31/13 0.56s} 19. gxf5 {+6.35/13 0.16s} exf5 {-9.63/12 0.56s}
+20. Nf6+ {+6.79/14 0.61s} Kf8 {-19.20/14 0.57s} 21. Rae1 {+9.04/16 1.0s}
+Bxf6 {-14.94/16 0.58s} 22. Bh6+ {+9.56/17 0.61s} Qg7+ {-26.85/14 0.57s}
+23. Ng5 {+M11/16 0.14s} Bxd4+ {-M10/20 0.56s} 24. Kh1 {+M9/26 0.26s}
+Be6 {-M8/23 0.56s} 25. Rxe6 {+M7/18 0.51s} Kg8 {-M6/24 0.56s}
+26. Qe8+ {+M5/25 0.14s} Qf8 {-M6/36 0.54s} 27. Rg6+ {+M5/22 0.59s}
+hxg6 {-M4/37 0.55s} 28. Qe6+ {+M3/16 1.1s} Qf7 {-M2/50 0.56s}
+29. Qxf7# {+M1/17 0.32s, White mates} 1-0
+
+[Event "?"]
+[Site "?"]
+[Date "2026.05.28"]
+[Round "1"]
+[White "Stockfish_Level_13"]
+[Black "pawnGO"]
+[Result "*"]
+[ECO "A00"]
+[GameDuration "00:00:00"]
+[GameEndTime "2026-05-28T00:48:10.973 +03"]
+[GameStartTime "2026-05-28T00:48:10.468 +03"]
+[Opening "Dunst (Sleipner, Heinrichsen) Opening"]
+[PlyCount "4"]
+[Termination "unterminated"]
+[TimeControl "10+0.5"]
+
+1. Nc3 {book} h6 {book} 2. h4 {book} a5 {book, No result} *
+

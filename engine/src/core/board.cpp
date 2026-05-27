@@ -21,9 +21,16 @@ namespace Board {
          7, 15, 15, 15,  3, 15, 15, 11
     };
 
-    int make_move(Move move, int move_flag, DirtyPiece* dp) {
+    int make_move(Move move, int move_flag, UndoInfo* undo, DirtyPiece* dp) {
         if (move_flag == 1) { // captures only
             if (!GET_MOVE_CAPTURE(move)) return 0;
+        }
+
+        if (undo) {
+            undo->enpassant = Bitboard::enpassant;
+            undo->castle = Bitboard::castle;
+            undo->hash_key = Bitboard::hash_key;
+            undo->captured_piece = -1;
         }
 
         int source = GET_MOVE_SOURCE(move);
@@ -55,19 +62,23 @@ namespace Board {
         Bitboard::hash_key ^= Zobrist::piece_keys[piece][target];
 
         if (capture) {
-            int start_piece, end_piece;
-            if (Bitboard::side == WHITE) { start_piece = p; end_piece = k; }
-            else { start_piece = P; end_piece = K; }
-
             int captured_piece = -1;
-            for (int bb_piece = start_piece; bb_piece <= end_piece; bb_piece++) {
-                if (Bitboard::get_bit(Bitboard::pieceBB[bb_piece], target)) {
-                    captured_piece = bb_piece;
-                    Bitboard::pop_bit(Bitboard::pieceBB[bb_piece], target);
-                    break;
-                }
+            if (Bitboard::side == WHITE) {
+                if (Bitboard::get_bit(Bitboard::pieceBB[p], target)) captured_piece = p;
+                else if (Bitboard::get_bit(Bitboard::pieceBB[n], target)) captured_piece = n;
+                else if (Bitboard::get_bit(Bitboard::pieceBB[b], target)) captured_piece = b;
+                else if (Bitboard::get_bit(Bitboard::pieceBB[r], target)) captured_piece = r;
+                else if (Bitboard::get_bit(Bitboard::pieceBB[q], target)) captured_piece = q;
+            } else {
+                if (Bitboard::get_bit(Bitboard::pieceBB[P], target)) captured_piece = P;
+                else if (Bitboard::get_bit(Bitboard::pieceBB[N], target)) captured_piece = N;
+                else if (Bitboard::get_bit(Bitboard::pieceBB[B], target)) captured_piece = B;
+                else if (Bitboard::get_bit(Bitboard::pieceBB[R], target)) captured_piece = R;
+                else if (Bitboard::get_bit(Bitboard::pieceBB[Q], target)) captured_piece = Q;
             }
             if (captured_piece != -1) {
+                if (undo) undo->captured_piece = captured_piece;
+                Bitboard::pop_bit(Bitboard::pieceBB[captured_piece], target);
                 Bitboard::hash_key ^= Zobrist::piece_keys[captured_piece][target];
                 if (dp) {
                     dp->pc[dp->dirtyNum] = Evaluation::nnue_piece_map[captured_piece];
@@ -147,14 +158,31 @@ namespace Board {
         Bitboard::hash_key ^= Zobrist::castle_keys[Bitboard::castle];
         Bitboard::hash_key ^= Zobrist::side_key;
 
-        Bitboard::occupancies[WHITE] = 0ULL;
-        Bitboard::occupancies[BLACK] = 0ULL;
-        Bitboard::occupancies[BOTH] = 0ULL;
+        Bitboard::pop_bit(Bitboard::occupancies[Bitboard::side], source);
+        Bitboard::set_bit(Bitboard::occupancies[Bitboard::side], target);
 
-        for (int piece_idx = P; piece_idx <= K; piece_idx++) Bitboard::occupancies[WHITE] |= Bitboard::pieceBB[piece_idx];
-        for (int piece_idx = p; piece_idx <= k; piece_idx++) Bitboard::occupancies[BLACK] |= Bitboard::pieceBB[piece_idx];
-        Bitboard::occupancies[BOTH] |= Bitboard::occupancies[WHITE];
-        Bitboard::occupancies[BOTH] |= Bitboard::occupancies[BLACK];
+        if (capture) {
+            Bitboard::pop_bit(Bitboard::occupancies[Bitboard::side ^ 1], target);
+        }
+        if (enpassant) {
+            int ep_pawn_sq = (Bitboard::side == WHITE) ? (target - 8) : (target + 8);
+            Bitboard::pop_bit(Bitboard::occupancies[Bitboard::side ^ 1], ep_pawn_sq);
+        }
+        if (castling) {
+            int rook_sq = -1, new_rook_sq = -1;
+            switch (target) {
+                case g1: rook_sq = h1; new_rook_sq = f1; break;
+                case c1: rook_sq = a1; new_rook_sq = d1; break;
+                case g8: rook_sq = h8; new_rook_sq = f8; break;
+                case c8: rook_sq = a8; new_rook_sq = d8; break;
+            }
+            if (rook_sq != -1) {
+                Bitboard::pop_bit(Bitboard::occupancies[Bitboard::side], rook_sq);
+                Bitboard::set_bit(Bitboard::occupancies[Bitboard::side], new_rook_sq);
+            }
+        }
+
+        Bitboard::occupancies[BOTH] = Bitboard::occupancies[WHITE] | Bitboard::occupancies[BLACK];
 
         Bitboard::side ^= 1; // Change side
 
@@ -163,10 +191,106 @@ namespace Board {
         int king_sq = (Bitboard::side == BLACK) ? Bitboard::lsb(Bitboard::pieceBB[K]) : Bitboard::lsb(Bitboard::pieceBB[k]);
 
         if (MoveGen::is_square_attacked(king_sq, Bitboard::side)) {
+            if (undo) unmake_move(move, *undo, dp);
             return 0; // Illegal move
         }
 
         return 1;
+    }
+
+    void unmake_move(Move move, const UndoInfo& undo, DirtyPiece* dp) {
+        int source = GET_MOVE_SOURCE(move);
+        int target = GET_MOVE_TARGET(move);
+        int piece = GET_MOVE_PIECE(move);
+        int promoted = GET_MOVE_PROMOTED(move);
+        int capture = GET_MOVE_CAPTURE(move);
+        int enpassant = GET_MOVE_ENPASSANT(move);
+        int castling = GET_MOVE_CASTLING(move);
+
+        Bitboard::side ^= 1; // Change side back
+
+        if (dp) {
+            dp->dirtyNum = 0;
+            dp->pc[0] = Evaluation::nnue_piece_map[piece];
+            dp->from[0] = target;
+            dp->to[0] = source;
+            dp->dirtyNum++;
+        }
+
+        Bitboard::pop_bit(Bitboard::occupancies[Bitboard::side], target);
+        Bitboard::set_bit(Bitboard::occupancies[Bitboard::side], source);
+
+        if (enpassant) {
+            int ep_pawn_sq = (Bitboard::side == WHITE) ? (target - 8) : (target + 8);
+            int ep_pawn = (Bitboard::side == WHITE) ? p : P;
+            Bitboard::set_bit(Bitboard::pieceBB[ep_pawn], ep_pawn_sq);
+            Bitboard::set_bit(Bitboard::occupancies[Bitboard::side ^ 1], ep_pawn_sq);
+            
+            Bitboard::pop_bit(Bitboard::pieceBB[piece], target);
+            Bitboard::set_bit(Bitboard::pieceBB[piece], source);
+            
+            if (dp) {
+                dp->pc[dp->dirtyNum] = Evaluation::nnue_piece_map[ep_pawn];
+                dp->from[dp->dirtyNum] = 64; 
+                dp->to[dp->dirtyNum] = ep_pawn_sq;
+                dp->dirtyNum++;
+            }
+        } else if (promoted) {
+            Bitboard::pop_bit(Bitboard::pieceBB[promoted], target);
+            Bitboard::set_bit(Bitboard::pieceBB[piece], source);
+            
+            if (dp) {
+                dp->to[0] = 64; 
+                dp->pc[dp->dirtyNum] = Evaluation::nnue_piece_map[promoted];
+                dp->from[dp->dirtyNum] = target; 
+                dp->to[dp->dirtyNum] = 64; 
+                dp->dirtyNum++;
+            }
+        } else {
+            Bitboard::pop_bit(Bitboard::pieceBB[piece], target);
+            Bitboard::set_bit(Bitboard::pieceBB[piece], source);
+        }
+
+        if (capture && undo.captured_piece != -1 && !enpassant) {
+            Bitboard::set_bit(Bitboard::pieceBB[undo.captured_piece], target);
+            Bitboard::set_bit(Bitboard::occupancies[Bitboard::side ^ 1], target);
+            if (dp) {
+                dp->pc[dp->dirtyNum] = Evaluation::nnue_piece_map[undo.captured_piece];
+                dp->from[dp->dirtyNum] = 64; 
+                dp->to[dp->dirtyNum] = target;
+                dp->dirtyNum++;
+            }
+        }
+
+        if (castling) {
+            int rook_sq = -1, new_rook_sq = -1, r_piece = (Bitboard::side == WHITE) ? R : r;
+            switch (target) {
+                case g1: rook_sq = h1; new_rook_sq = f1; break;
+                case c1: rook_sq = a1; new_rook_sq = d1; break;
+                case g8: rook_sq = h8; new_rook_sq = f8; break;
+                case c8: rook_sq = a8; new_rook_sq = d8; break;
+            }
+            if (rook_sq != -1) {
+                Bitboard::pop_bit(Bitboard::pieceBB[r_piece], new_rook_sq); 
+                Bitboard::set_bit(Bitboard::pieceBB[r_piece], rook_sq);
+                
+                Bitboard::pop_bit(Bitboard::occupancies[Bitboard::side], new_rook_sq);
+                Bitboard::set_bit(Bitboard::occupancies[Bitboard::side], rook_sq);
+                
+                if (dp) {
+                    dp->pc[dp->dirtyNum] = Evaluation::nnue_piece_map[r_piece];
+                    dp->from[dp->dirtyNum] = new_rook_sq;
+                    dp->to[dp->dirtyNum] = rook_sq;
+                    dp->dirtyNum++;
+                }
+            }
+        }
+
+        Bitboard::occupancies[BOTH] = Bitboard::occupancies[WHITE] | Bitboard::occupancies[BLACK];
+        
+        Bitboard::enpassant = undo.enpassant;
+        Bitboard::castle = undo.castle;
+        Bitboard::hash_key = undo.hash_key;
     }
 
     void perft_driver(int depth) {
@@ -179,13 +303,12 @@ namespace Board {
         MoveGen::generate_moves(move_list);
 
         for (int i = 0; i < move_list.count; i++) {
-            COPY_BOARD;
-            if (!make_move(move_list.moves[i], 0)) {
-                RESTORE_BOARD;
+            UndoInfo undo;
+            if (!make_move(move_list.moves[i], 0, &undo)) {
                 continue;
             }
             perft_driver(depth - 1);
-            RESTORE_BOARD;
+            unmake_move(move_list.moves[i], undo);
         }
     }
 
@@ -198,15 +321,14 @@ namespace Board {
         auto start = std::chrono::high_resolution_clock::now();
 
         for (int i = 0; i < move_list.count; i++) {
-            COPY_BOARD;
-            if (!make_move(move_list.moves[i], 0)) {
-                RESTORE_BOARD;
+            UndoInfo undo;
+            if (!make_move(move_list.moves[i], 0, &undo)) {
                 continue;
             }
             long long cummulative_nodes = nodes;
             perft_driver(depth - 1);
             long long old_nodes = nodes - cummulative_nodes;
-            RESTORE_BOARD;
+            unmake_move(move_list.moves[i], undo);
 
             int source = GET_MOVE_SOURCE(move_list.moves[i]);
             int target = GET_MOVE_TARGET(move_list.moves[i]);

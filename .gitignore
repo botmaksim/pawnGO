@@ -1,42 +1,42 @@
-# Build output
-engine/build/
-engine/bin/
-*.exe
-*.o
-*.obj
-
-# Node/Frontend
+# Node
 node_modules/
 dist/
-build/
-.npm/
+npm-debug.log
+yarn-error.log
 
-# IDE & OS
+# C/C++ build outputs
+build/
+bin/
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+
+# IDEs
 .vscode/
 .idea/
 *.swp
+*.swo
 .DS_Store
-Thumbs.db
 
-# Engine dependencies
-engine/src/nnue/*.nnue
-!engine/src/nnue/nn-62ef826d1a6d.nnue
+# Logs & Engine specific
+engine/engine.log
+server/engine.log
+tournament.log
+games/*.pgn
 
-# Logs
-*.log
-npm-debug.log*
+engine/tests
+tests
 
-# Syzygy Tables
-syzygy_tables/
-engine/3-4-5/
-
-# Tournament
-engine/scripts/gauntlet_results.txt
-engine/scripts/tmp_result.txt
-
-# Tests and generated files
-*.pgn
-test_board
-magics_gen*
-tests/
-engine/scripts/games/
+#*.nnue
+3-4-5/

@@ -21,8 +21,11 @@ const EvalBar = ({ score, boardOrientation }) => {
        // Mate for black
        fillPercentage = 0;
        displayScore = score;
+    } else if (score === 'Book') {
+       fillPercentage = 50;
+       displayScore = 'Book';
     } else {
-       const cp = parseFloat(score);
+       const cp = parseFloat(score) || 0;
        // Non-linear scale mapping CP to fill percentage:
        // 50 + 50 * (2/PI) * arctan(cp / 4)
        // This gives a smooth curve where 0 is 50%, +4 is 75%, +10 is ~88%
@@ -35,7 +38,7 @@ const EvalBar = ({ score, boardOrientation }) => {
   const finalFill = isBlackBottom ? 100 - fillPercentage : fillPercentage;
   
   // The text should be at the top if White is winning (and white is top), etc.
-  const textIsWhite = parseFloat(score) >= 0 || score.startsWith('M');
+  const textIsWhite = score === 'Book' ? true : (parseFloat(score) >= 0 || score.startsWith('M'));
   
   return (
     <div style={{

@@ -8,7 +8,7 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -flto")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -march=native -flto")
 
-include_directories(src src/nnue/src src/syzygy)
+include_directories(src src/core src/search src/eval src/utils src/eval/nnue/src src/eval/syzygy)
 
 # Optimization flags for release build
 if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "")
@@ -25,13 +25,18 @@ file(GLOB_RECURSE SRC_FILES
     "src/*.cpp"
 )
 
-list(APPEND SRC_FILES "src/syzygy/tbprobe.c")
+list(APPEND SRC_FILES "src/eval/syzygy/tbprobe.c")
 
 # Do not include example files from nnue-probe if any
-list(REMOVE_ITEM SRC_FILES "${CMAKE_SOURCE_DIR}/src/nnue/example.cpp")
+list(REMOVE_ITEM SRC_FILES "${CMAKE_SOURCE_DIR}/src/eval/nnue/example.cpp")
 
-list(REMOVE_ITEM SRC_FILES "${CMAKE_SOURCE_DIR}/src/magics_generator.cpp")
+list(REMOVE_ITEM SRC_FILES "${CMAKE_SOURCE_DIR}/src/core/magics_generator.cpp")
 add_executable(pawnGO 
     ${SRC_FILES}
 )
-list(REMOVE_ITEM SRC_FILES "${CMAKE_SOURCE_DIR}/src/magics_generator.cpp")
+
+add_custom_command(TARGET pawnGO POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+    ${CMAKE_SOURCE_DIR}/src/eval/nnue/nn-62ef826d1a6d.nnue
+    ${CMAKE_BINARY_DIR}/nn-62ef826d1a6d.nnue
+)

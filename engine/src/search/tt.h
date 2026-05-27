@@ -14,9 +14,13 @@ struct TTEntry {
     std::atomic<U64> data;
 };
 
+struct alignas(64) TTBucket {
+    TTEntry entries[4];
+};
+
 namespace TT {
-    extern TTEntry* table;
-    extern int num_entries;
+    extern TTBucket* table;
+    extern int num_buckets;
     
     void init(int mb_size);
     void free_table();

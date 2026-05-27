@@ -13,7 +13,8 @@ namespace Evaluation {
     extern bool use_nnue;
     
     const int MAX_PLY = 200;
-    extern thread_local NNUEdata nnue_stack[MAX_PLY];
+    extern thread_local NNUEdata* nnue_stack;
+    void allocate_nnue_stack();
     int evaluate_incremental(int ply);
 
     extern const int pawn_score[64];

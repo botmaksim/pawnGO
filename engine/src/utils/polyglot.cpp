@@ -1,15 +1,26 @@
 #include "polyglot.h"
 #include "polyglot_keys.h"
-#include "bitboard.h"
-#include "board.h"
-#include "movegen.h"
 #include <fstream>
-#include <iostream>
 #include <vector>
 #include <random>
 #include <algorithm>
+#include <unordered_map>
+#include "bitboard.h"
+#include "board.h"
+#include "movegen.h"
 
 namespace Polyglot {
+
+    struct PolyglotEntry {
+        U64 key;
+        uint16_t move;
+        uint16_t weight;
+        uint32_t learn;
+    };
+    
+    std::string current_book_path = "";
+    std::vector<PolyglotEntry> book_cache;
+    bool book_loaded = false;
 
     // Endianness swap for 16, 32, 64 bit values
     uint16_t swap16(uint16_t v) { return (v >> 8) | (v << 8); }
@@ -147,16 +158,43 @@ namespace Polyglot {
         return 0; // Invalid move
     }
 
-    Move get_book_move(const std::string& book_path) {
+    void load_book(const std::string& book_path) {
+        if (book_loaded && current_book_path == book_path) return;
+        
+        book_cache.clear();
+        book_loaded = false;
+        
         std::ifstream file(book_path, std::ios::binary | std::ios::ate);
-        if (!file.is_open()) return 0;
+        if (!file.is_open()) return;
         
         std::streamsize size = file.tellg();
-        if (size % 16 != 0) return 0;
+        if (size % 16 != 0) return;
         
         int num_entries = size / 16;
-        if (num_entries == 0) return 0;
+        if (num_entries == 0) return;
         
+        book_cache.resize(num_entries);
+        file.seekg(0, std::ios::beg);
+        
+        // Read the entire file into memory for fast binary search
+        file.read(reinterpret_cast<char*>(book_cache.data()), size);
+        
+        for (int i = 0; i < num_entries; i++) {
+            book_cache[i].key = swap64(book_cache[i].key);
+            book_cache[i].move = swap16(book_cache[i].move);
+            book_cache[i].weight = swap16(book_cache[i].weight);
+            // learn is not needed for now
+        }
+        
+        current_book_path = book_path;
+        book_loaded = true;
+    }
+
+    Move get_book_move(const std::string& book_path) {
+        load_book(book_path);
+        if (!book_loaded || book_cache.empty()) return 0;
+        
+        int num_entries = book_cache.size();
         U64 target_key = compute_polyglot_key();
         
         int low = 0;
@@ -165,10 +203,7 @@ namespace Polyglot {
         
         while (low <= high) {
             int mid = low + (high - low) / 2;
-            file.seekg(mid * 16, std::ios::beg);
-            U64 key;
-            file.read(reinterpret_cast<char*>(&key), sizeof(key));
-            key = swap64(key);
+            U64 key = book_cache[mid].key;
             
             if (key < target_key) {
                 low = mid + 1;
@@ -183,30 +218,18 @@ namespace Polyglot {
         if (first_match == -1) return 0;
         
         std::vector<PolyglotEntry> entries;
-        file.seekg(first_match * 16, std::ios::beg);
-        
         int total_weight = 0;
+        
         while (first_match < num_entries) {
-            PolyglotEntry entry;
-            file.read(reinterpret_cast<char*>(&entry.key), 8);
-            file.read(reinterpret_cast<char*>(&entry.move), 2);
-            file.read(reinterpret_cast<char*>(&entry.weight), 2);
-            file.read(reinterpret_cast<char*>(&entry.learn), 4);
+            if (book_cache[first_match].key != target_key) break;
             
-            entry.key = swap64(entry.key);
-            if (entry.key != target_key) break;
-            
-            entry.move = swap16(entry.move);
-            entry.weight = swap16(entry.weight);
-            
-            entries.push_back(entry);
-            total_weight += entry.weight;
+            entries.push_back(book_cache[first_match]);
+            total_weight += book_cache[first_match].weight;
             first_match++;
         }
         
         if (entries.empty()) return 0;
         if (total_weight == 0) {
-            // Pick uniformly if all weights are 0
             std::random_device rd;
             std::mt19937 gen(rd());
             std::uniform_int_distribution<> dis(0, entries.size() - 1);
@@ -227,5 +250,46 @@ namespace Polyglot {
         }
         
         return polyglot_to_pawngo_move(entries.back().move);
+    }
+
+    std::vector<std::pair<Move, int>> get_all_book_moves(const std::string& book_path) {
+        std::vector<std::pair<Move, int>> result;
+        load_book(book_path);
+        if (!book_loaded || book_cache.empty()) return result;
+        
+        int num_entries = book_cache.size();
+        U64 target_key = compute_polyglot_key();
+        
+        int low = 0;
+        int high = num_entries - 1;
+        int first_match = -1;
+        
+        while (low <= high) {
+            int mid = low + (high - low) / 2;
+            U64 key = book_cache[mid].key;
+            
+            if (key < target_key) {
+                low = mid + 1;
+            } else if (key > target_key) {
+                high = mid - 1;
+            } else {
+                first_match = mid;
+                high = mid - 1; // Find the FIRST match
+            }
+        }
+        
+        if (first_match == -1) return result;
+        
+        while (first_match < num_entries) {
+            if (book_cache[first_match].key != target_key) break;
+            
+            Move m = polyglot_to_pawngo_move(book_cache[first_match].move);
+            if (m != 0) {
+                result.push_back({m, book_cache[first_match].weight});
+            }
+            first_match++;
+        }
+        
+        return result;
     }
 }

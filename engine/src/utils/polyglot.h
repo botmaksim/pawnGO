@@ -15,6 +15,7 @@ struct PolyglotEntry {
 namespace Polyglot {
     U64 compute_polyglot_key();
     Move get_book_move(const std::string& book_path);
+    std::vector<std::pair<Move, int>> get_all_book_moves(const std::string& book_path);
     int pawngo_move_to_polyglot(Move move);
     Move polyglot_to_pawngo_move(uint16_t poly_move);
 }

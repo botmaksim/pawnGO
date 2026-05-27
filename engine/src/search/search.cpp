@@ -1,3 +1,4 @@
+#include "polyglot.h"
 #include "search.h"
 #include "evaluation.h"
 #include "syzygy/tbprobe.h"
@@ -9,6 +10,10 @@
 #include <thread>
 #include <chrono>
 #include <cmath>
+
+extern bool UseOwnBook;
+extern std::string BookFile;
+extern int game_ply;
 
 namespace Search {
     int max_depth = 6;
@@ -28,7 +33,7 @@ namespace Search {
         for (int depth = 0; depth < 64; depth++) {
             for (int moves = 0; moves < 64; moves++) {
                 if (depth >= 3 && moves >= 4) {
-                    LMR_table[depth][moves] = 1 + std::log(depth) * std::log(moves) / 2.0;
+                    LMR_table[depth][moves] = 1.5 + std::log(depth) * std::log(moves) / 1.5;
                 } else {
                     LMR_table[depth][moves] = 0;
                 }
@@ -57,9 +62,32 @@ namespace Search {
         return 0;
     }
 
+    inline int get_piece_on_square(int sq) {
+        if (!(Bitboard::occupancies[2] & (1ULL << sq))) return -1;
+        if (Bitboard::side == WHITE) {
+            if (Bitboard::pieceBB[p] & (1ULL << sq)) return p;
+            if (Bitboard::pieceBB[n] & (1ULL << sq)) return n;
+            if (Bitboard::pieceBB[b] & (1ULL << sq)) return b;
+            if (Bitboard::pieceBB[r] & (1ULL << sq)) return r;
+            if (Bitboard::pieceBB[q] & (1ULL << sq)) return q;
+            return p;
+        } else {
+            if (Bitboard::pieceBB[P] & (1ULL << sq)) return P;
+            if (Bitboard::pieceBB[N] & (1ULL << sq)) return N;
+            if (Bitboard::pieceBB[B] & (1ULL << sq)) return B;
+            if (Bitboard::pieceBB[R] & (1ULL << sq)) return R;
+            if (Bitboard::pieceBB[Q] & (1ULL << sq)) return Q;
+            return P;
+        }
+    }
+
     int score_move(Move move, Move hash_move, int ply, Move prev_move = 0) {
         if (move == hash_move) return 30000;
-        if (GET_MOVE_CAPTURE(move)) return 20000 + get_piece_value(GET_MOVE_PIECE(move)) - get_piece_value(GET_MOVE_PIECE(move))/10;
+        if (GET_MOVE_CAPTURE(move)) {
+            int victim = get_piece_on_square(GET_MOVE_TARGET(move));
+            int victim_val = (victim != -1) ? get_piece_value(victim) : 100; // En passant victim is a pawn
+            return 20000 + victim_val * 10 - get_piece_value(GET_MOVE_PIECE(move));
+        }
         if (GET_MOVE_PROMOTED(move)) return 19000;
         
         if (ply < 100) {
@@ -78,27 +106,38 @@ namespace Search {
         return history_table[Bitboard::side][src][tgt];
     }
 
-    void sort_moves(MoveList& move_list, Move hash_move, int ply, Move prev_move) {
+    struct MovePicker {
+        MoveList move_list;
         int scores[256];
-        for (int i = 0; i < move_list.count; i++) {
-            scores[i] = score_move(move_list.moves[i], hash_move, ply, prev_move);
-        }
-        for (int i = 1; i < move_list.count; i++) {
-            int j = i;
-            while (j > 0 && scores[j - 1] < scores[j]) {
-                std::swap(scores[j - 1], scores[j]);
-                std::swap(move_list.moves[j - 1], move_list.moves[j]);
-                j--;
-            }
-        }
-    }
+        int index;
 
-    inline int get_piece_on_square(int sq) {
-        for (int p = 0; p < 12; p++) {
-            if (Bitboard::pieceBB[p] & (1ULL << sq)) return p;
+        MovePicker(Move hash_move, int ply, Move prev_move, bool only_captures, bool in_check = false) {
+            MoveGen::generate_moves(move_list, only_captures);
+            for (int i = 0; i < move_list.count; i++) {
+                scores[i] = score_move(move_list.moves[i], hash_move, ply, prev_move);
+            }
+            index = 0;
         }
-        return -1;
-    }
+
+        Move next_move() {
+            if (index >= move_list.count) return 0;
+            
+            int best_score = -100000;
+            int best_idx = index;
+            
+            for (int i = index; i < move_list.count; i++) {
+                if (scores[i] > best_score) {
+                    best_score = scores[i];
+                    best_idx = i;
+                }
+            }
+            
+            std::swap(scores[index], scores[best_idx]);
+            std::swap(move_list.moves[index], move_list.moves[best_idx]);
+            
+            return move_list.moves[index++];
+        }
+    };
 
     int quiescence(int alpha, int beta, int ply) {
         if (stopped) return 0;
@@ -107,60 +146,62 @@ namespace Search {
         int king_sq = Bitboard::side == WHITE ? Bitboard::lsb(Bitboard::pieceBB[K]) : Bitboard::lsb(Bitboard::pieceBB[k]);
         bool in_check = MoveGen::is_square_attacked(king_sq, Bitboard::side ^ 1);
 
+        Move hash_move = 0;
+        int tt_score = TT::read_hash_entry(Bitboard::hash_key, alpha, beta, 0, ply, hash_move);
+        if (tt_score != -32000) {
+            return tt_score;
+        }
+
+        int old_alpha = alpha;
+        Move best_move = 0;
+
         if (!in_check) {
             int eval = Evaluation::evaluate_incremental(ply);
             if (eval >= beta) return beta;
             if (eval > alpha) alpha = eval;
+            
+            // Delta Pruning
+            if (eval + 1000 < alpha) return alpha;
         }
 
-        MoveList move_list;
-        MoveGen::generate_moves(move_list, !in_check);
-        sort_moves(move_list, 0, 0, 0); // Need to pass prev_move
-
+        MovePicker move_picker(hash_move, ply, 0, !in_check, in_check);
         int legal_moves = 0;
 
-        for (int i = 0; i < move_list.count; i++) {
-            Move move = move_list.moves[i];
+        while (Move move = move_picker.next_move()) {
             if (!in_check && !GET_MOVE_CAPTURE(move)) continue;
 
             int tgt = GET_MOVE_TARGET(move);
             int attacker = GET_MOVE_PIECE(move);
             int victim = get_piece_on_square(tgt);
 
-            // Basic SEE-like Pruning
-            // DISABLED FOR TACTICAL ACCURACY
-            // if (victim != -1 && get_piece_value(attacker) > get_piece_value(victim) && !GET_MOVE_PROMOTED(move)) {
-            //     if (MoveGen::is_square_attacked(tgt, Bitboard::side ^ 1)) {
-            //         continue;
-            //     }
-            // }
-
-            // Delta Pruning
-            // DISABLED FOR TACTICAL ACCURACY
-            // int margin = 200 + (victim != -1 ? get_piece_value(victim) : 900); 
-            // if (eval + margin < alpha && !GET_MOVE_PROMOTED(move)) {
-            //     continue;
-            // }
-
-            COPY_BOARD;
-            if (ply < Evaluation::MAX_PLY - 1) {
+            Board::UndoInfo undo;
+            if (Evaluation::use_nnue && ply < Evaluation::MAX_PLY - 1) {
                 Evaluation::nnue_stack[ply + 1].accumulator.computedAccumulation = 0;
             }
-            if (!Board::make_move(move, 0, (ply < Evaluation::MAX_PLY - 1) ? &Evaluation::nnue_stack[ply + 1].dirtyPiece : nullptr)) {
-                RESTORE_BOARD;
+            if (!Board::make_move(move, 1, &undo, (ply < Evaluation::MAX_PLY - 1) ? &Evaluation::nnue_stack[ply + 1].dirtyPiece : nullptr)) {
                 continue;
             }
             legal_moves++;
+            nodes++;
             int score = -quiescence(-beta, -alpha, ply + 1);
-            RESTORE_BOARD;
+            Board::unmake_move(move, undo);
 
-            if (score >= beta) return beta;
-            if (score > alpha) alpha = score;
+            if (score >= beta) {
+                TT::write_hash_entry(Bitboard::hash_key, beta, 0, ply, hash_flag_beta, move);
+                return beta;
+            }
+            if (score > alpha) {
+                alpha = score;
+                best_move = move;
+            }
         }
 
         if (in_check && legal_moves == 0) {
             return -31000 + ply;
         }
+
+        int hash_flag = (alpha > old_alpha) ? hash_flag_exact : hash_flag_alpha;
+        TT::write_hash_entry(Bitboard::hash_key, alpha, 0, ply, hash_flag, best_move);
 
         return alpha;
     }
@@ -225,7 +266,7 @@ namespace Search {
 
         // Razoring
         if (!is_pv && !in_check && depth <= 3) {
-            int razor_margin = 300 * depth;
+            int razor_margin = 250 * depth;
             if (static_eval + razor_margin <= alpha) {
                 int score = quiescence(alpha - razor_margin, beta, ply);
                 if (score <= alpha) return score;
@@ -234,7 +275,7 @@ namespace Search {
 
         // Reverse Futility Pruning (Static Null Move Pruning)
         if (!in_check && !is_pv && depth < 5 && ply > 0) {
-            int rfp_margin = 120 * depth;
+            int rfp_margin = 80 * depth;
             if (static_eval - rfp_margin >= beta) {
                 return static_eval;
             }
@@ -247,7 +288,9 @@ namespace Search {
                 (Bitboard::pieceBB[n] | Bitboard::pieceBB[b] | Bitboard::pieceBB[r] | Bitboard::pieceBB[q]);
                 
             if (has_pieces) {
-                COPY_BOARD;
+                int old_enpassant = Bitboard::enpassant;
+                U64 old_hash = Bitboard::hash_key;
+                
                 Bitboard::side ^= 1;
                 Bitboard::hash_key ^= Zobrist::side_key;
                 if (Bitboard::enpassant != no_sq) {
@@ -255,15 +298,18 @@ namespace Search {
                 }
                 Bitboard::enpassant = no_sq;
                 
-                if (ply + 1 < Evaluation::MAX_PLY) {
-                    Evaluation::nnue_stack[ply + 1].dirtyPiece.dirtyNum = 0;
+                if (Evaluation::use_nnue && ply < Evaluation::MAX_PLY - 1) {
                     Evaluation::nnue_stack[ply + 1].accumulator.computedAccumulation = 0;
+                    Evaluation::nnue_stack[ply + 1].dirtyPiece.dirtyNum = 0;
                 }
                 
-                int R = 3 + depth / 4;
+                int R = 4 + depth / 4;
                 int score = -alpha_beta(depth - 1 - R, -beta, -beta + 1, ply + 1, false, 0);
                 
-                RESTORE_BOARD;
+                Bitboard::side ^= 1;
+                Bitboard::enpassant = old_enpassant;
+                Bitboard::hash_key = old_hash;
+                
                 if (stopped) return 0;
                 
                 if (score >= beta) return beta;
@@ -277,9 +323,7 @@ namespace Search {
             TT::read_hash_entry(Bitboard::hash_key, alpha, beta, depth, ply, hash_move);
         }
 
-        MoveList move_list;
-        MoveGen::generate_moves(move_list);
-        sort_moves(move_list, hash_move, ply, prev_move);
+        MovePicker move_picker(hash_move, ply, prev_move, false);
 
         int legal_moves = 0;
         int old_alpha = alpha;
@@ -288,8 +332,8 @@ namespace Search {
 
         bool futility_pruning = !in_check && !is_pv && depth <= 4 && (static_eval + 150 * depth <= alpha);
 
-        for (int i = 0; i < move_list.count; i++) {
-            bool is_quiet = !GET_MOVE_CAPTURE(move_list.moves[i]) && !GET_MOVE_PROMOTED(move_list.moves[i]);
+        while (Move move = move_picker.next_move()) {
+            bool is_quiet = !GET_MOVE_CAPTURE(move) && !GET_MOVE_PROMOTED(move);
             
             // Late Move Pruning
             if (!in_check && !is_pv && is_quiet && depth < 4 && legal_moves > (3 + 2 * depth * depth)) {
@@ -298,17 +342,16 @@ namespace Search {
 
             // Futility Pruning
             if (futility_pruning && is_quiet && legal_moves > 0 && 
-                move_list.moves[i] != killer_moves[0][ply] && 
-                move_list.moves[i] != killer_moves[1][ply]) {
+                move != killer_moves[0][ply] && 
+                move != killer_moves[1][ply]) {
                 continue;
             }
 
-            COPY_BOARD;
-            if (ply < Evaluation::MAX_PLY - 1) {
+            Board::UndoInfo undo;
+            if (Evaluation::use_nnue && ply < Evaluation::MAX_PLY - 1) {
                 Evaluation::nnue_stack[ply + 1].accumulator.computedAccumulation = 0;
             }
-            if (!Board::make_move(move_list.moves[i], 0, (ply < Evaluation::MAX_PLY - 1) ? &Evaluation::nnue_stack[ply + 1].dirtyPiece : nullptr)) {
-                RESTORE_BOARD;
+            if (!Board::make_move(move, 0, &undo, (ply < Evaluation::MAX_PLY - 1) ? &Evaluation::nnue_stack[ply + 1].dirtyPiece : nullptr)) {
                 continue;
             }
             legal_moves++;
@@ -317,7 +360,7 @@ namespace Search {
             
             // PVS / LMR
             if (legal_moves == 1) {
-                score = -alpha_beta(depth - 1, -beta, -alpha, ply + 1, true, move_list.moves[i]);
+                score = -alpha_beta(depth - 1, -beta, -alpha, ply + 1, true, move);
             } else {
                 int R = 0;
                 if (depth >= 3 && legal_moves >= 4 && !in_check && is_quiet) {
@@ -325,8 +368,8 @@ namespace Search {
                     int m = std::min(legal_moves, 63);
                     R = LMR_table[d][m];
                     
-                    int src = GET_MOVE_SOURCE(move_list.moves[i]);
-                    int tgt = GET_MOVE_TARGET(move_list.moves[i]);
+                    int src = GET_MOVE_SOURCE(move);
+                    int tgt = GET_MOVE_TARGET(move);
                     int history_score = history_table[Bitboard::side][src][tgt];
                     
                     // History-based LMR adjustment
@@ -337,32 +380,32 @@ namespace Search {
                     if (R > depth - 1) R = depth - 1;
                 }
                 
-                score = -alpha_beta(depth - 1 - R, -alpha - 1, -alpha, ply + 1, true, move_list.moves[i]);
+                score = -alpha_beta(depth - 1 - R, -alpha - 1, -alpha, ply + 1, true, move);
                 
                 if (score > alpha && R > 0) {
-                    score = -alpha_beta(depth - 1, -alpha - 1, -alpha, ply + 1, true, move_list.moves[i]);
+                    score = -alpha_beta(depth - 1, -alpha - 1, -alpha, ply + 1, true, move);
                 }
                 if (score > alpha && score < beta) {
-                    score = -alpha_beta(depth - 1, -beta, -alpha, ply + 1, true, move_list.moves[i]);
+                    score = -alpha_beta(depth - 1, -beta, -alpha, ply + 1, true, move);
                 }
             }
             
-            RESTORE_BOARD;
+            Board::unmake_move(move, undo);
 
             if (stopped) return 0;
 
             if (score >= beta) {
-                TT::write_hash_entry(Bitboard::hash_key, beta, depth, ply, hash_flag_beta, move_list.moves[i]);
+                TT::write_hash_entry(Bitboard::hash_key, beta, depth, ply, hash_flag_beta, move);
                 if (is_quiet) {
                     if (ply < 100) {
                         killer_moves[1][ply] = killer_moves[0][ply];
-                        killer_moves[0][ply] = move_list.moves[i];
+                        killer_moves[0][ply] = move;
                     }
                     if (prev_move != 0) {
-                        counter_move[GET_MOVE_SOURCE(prev_move)][GET_MOVE_TARGET(prev_move)] = move_list.moves[i];
+                        counter_move[GET_MOVE_SOURCE(prev_move)][GET_MOVE_TARGET(prev_move)] = move;
                     }
-                    int src = GET_MOVE_SOURCE(move_list.moves[i]);
-                    int tgt = GET_MOVE_TARGET(move_list.moves[i]);
+                    int src = GET_MOVE_SOURCE(move);
+                    int tgt = GET_MOVE_TARGET(move);
                     int bonus = depth * depth;
                     history_table[Bitboard::side][src][tgt] += bonus;
                     if (history_table[Bitboard::side][src][tgt] > 10000) {
@@ -380,7 +423,7 @@ namespace Search {
             if (score > alpha) {
                 hash_flag = hash_flag_exact;
                 alpha = score;
-                best_move = move_list.moves[i];
+                best_move = move;
             }
         }
 
@@ -421,30 +464,35 @@ namespace Search {
 
             clear_heuristics();
             
-            // Helper does its own iterative deepening infinitely until stopped
-            for (int current_depth = 1 + (thread_id % 4); current_depth < 100; current_depth++) {
+            Evaluation::allocate_nnue_stack();
+            Evaluation::nnue_stack[0].accumulator.computedAccumulation = 0;
+            if (Evaluation::use_nnue) {
+                Evaluation::evaluate_incremental(0);
+            }
+            
+            // Helper does its own iterative deepening until stopped or max_depth
+            for (int current_depth = 1 + (thread_id % 4); current_depth <= root_max_depth; current_depth++) {
                 if (stopped || !search_running) break;
                 
-                MoveList move_list;
-                MoveGen::generate_moves(move_list);
-                sort_moves(move_list, 0, 0); 
+                MovePicker move_picker(0, 0, 0, false);
                 
-                for (int i=0; i < move_list.count; i++) {
-                    COPY_BOARD;
-                    Evaluation::nnue_stack[0].accumulator.computedAccumulation = 0;
-                    if (!Board::make_move(move_list.moves[i], 0, &Evaluation::nnue_stack[1].dirtyPiece)) {
-                        RESTORE_BOARD;
+                int first_move = true;
+                while (Move move = move_picker.next_move()) {
+                    Board::UndoInfo undo;
+                    Evaluation::nnue_stack[1].accumulator.computedAccumulation = 0;
+                    if (!Board::make_move(move, 0, &undo, &Evaluation::nnue_stack[1].dirtyPiece)) {
                         continue;
                     }
                     
                     int score;
-                    if (i == 0) {
-                        score = -alpha_beta(current_depth - 1, -32000, 32000, 1, true, move_list.moves[i]);
+                    if (first_move) {
+                        score = -alpha_beta(current_depth - 1, -32000, 32000, 1, true, move);
+                        first_move = false;
                     } else {
-                        score = -alpha_beta(current_depth - 1, -32000, 32000, 1, true, move_list.moves[i]);
+                        score = -alpha_beta(current_depth - 1, -32000, 32000, 1, true, move);
                     }
                     
-                    RESTORE_BOARD;
+                    Board::unmake_move(move, undo);
                     if (stopped || !search_running) break;
                 }
             }
@@ -493,9 +541,14 @@ namespace Search {
         int e = Bitboard::enpassant;
         int c = Bitboard::castle;
         
+        std::vector<Board::UndoInfo> undos;
+        std::vector<Move> moves;
+        std::vector<U64> hashes_seen;
+        hashes_seen.push_back(current_hash);
+        
         while (depth < max_depth_val) {
             Move best_move = 0;
-            TT::read_hash_entry(current_hash, -32000, 32000, 0, depth, best_move);
+            TT::read_hash_entry(current_hash, -32000, 32000, 0, 0, best_move);
             if (best_move == 0) break;
             
             MoveList move_list;
@@ -527,14 +580,20 @@ namespace Search {
                 if (p_type == 4) pv_str += "q";
             }
 
-            COPY_BOARD;
-            if (!Board::make_move(best_move, 0)) {
-                RESTORE_BOARD;
-                break;
-            }
+            Board::UndoInfo undo;
+            Board::make_move(best_move, 0, &undo, nullptr);
+            undos.push_back(undo);
+            moves.push_back(best_move);
             
             current_hash = Bitboard::hash_key;
+            if (std::find(hashes_seen.begin(), hashes_seen.end(), current_hash) != hashes_seen.end()) break;
+            hashes_seen.push_back(current_hash);
+            
             depth++;
+        }
+
+        for (int i = (int)moves.size() - 1; i >= 0; i--) {
+            Board::unmake_move(moves[i], undos[i]);
         }
 
         for(int i=0; i<12; i++) Bitboard::pieceBB[i] = pBB[i];
@@ -556,28 +615,57 @@ namespace Search {
         // We do NOT parse current_fen here, because main.cpp already sets up the board and applies moves!
         clear_heuristics();
         
+        auto move_to_string = [](Move m) -> std::string {
+            int s = GET_MOVE_SOURCE(m);
+            int t = GET_MOVE_TARGET(m);
+            int p = GET_MOVE_PROMOTED(m);
+            std::string res = "";
+            res += char((s % 8) + 'a');
+            res += char((s / 8) + '1');
+            res += char((t % 8) + 'a');
+            res += char((t / 8) + '1');
+            if (p) {
+                int p_type = p % 6;
+                if (p_type == 1) res += "n";
+                if (p_type == 2) res += "b";
+                if (p_type == 3) res += "r";
+                if (p_type == 4) res += "q";
+            }
+            return res;
+        };
+        
+        // Book moves are now handled in the main search loop to support MultiPV
+        
         max_depth = depth;
         stopped = false;
         nodes = 0;
         
+        Evaluation::allocate_nnue_stack();
         Evaluation::nnue_stack[0].accumulator.computedAccumulation = 0;
+        if (Evaluation::use_nnue) {
+            Evaluation::evaluate_incremental(0); // Initialize root accumulator properly!
+        }
 
-        MoveList move_list;
-        MoveGen::generate_moves(move_list);
-        sort_moves(move_list, 0, 0);
+        MovePicker move_picker(0, 0, 0, false);
 
         std::vector<RootMove> legal_moves;
-        for (int i = 0; i < move_list.count; i++) {
-            COPY_BOARD;
-            if (Board::make_move(move_list.moves[i], 0)) {
-                legal_moves.push_back({move_list.moves[i], 0});
+        while (Move move = move_picker.next_move()) {
+            Board::UndoInfo undo;
+            if (Board::make_move(move, 0, &undo, nullptr)) {
+                legal_moves.push_back({move, 0});
+                Board::unmake_move(move, undo);
             }
-            RESTORE_BOARD;
         }
 
         if (legal_moves.empty()) {
             std::cout << "bestmove 0000" << std::endl;
             return;
+        }
+
+        std::vector<Move> current_book_moves;
+        if (UseOwnBook && !BookFile.empty()) {
+            auto b_moves = Polyglot::get_all_book_moves(BookFile);
+            for (auto& bm : b_moves) current_book_moves.push_back(bm.first);
         }
 
         uint64_t white_pieces = Bitboard::pieceBB[P] | Bitboard::pieceBB[N] | Bitboard::pieceBB[B] | Bitboard::pieceBB[R] | Bitboard::pieceBB[Q] | Bitboard::pieceBB[K];
@@ -636,8 +724,15 @@ namespace Search {
         for (int current_depth = 1; current_depth <= depth; current_depth++) {
             std::vector<Move> excluded_moves;
             
-            // Re-sort legal moves based on previous depth's scores
-            std::sort(legal_moves.begin(), legal_moves.end(), [](const RootMove& a, const RootMove& b) {
+            // Re-sort legal moves: book moves first, then by score
+            std::sort(legal_moves.begin(), legal_moves.end(), [&](const RootMove& a, const RootMove& b) {
+                bool a_is_book = false, b_is_book = false;
+                for (auto& bm : current_book_moves) {
+                    if (bm == a.move) a_is_book = true;
+                    if (bm == b.move) b_is_book = true;
+                }
+                if (a_is_book && !b_is_book) return true;
+                if (!a_is_book && b_is_book) return false;
                 return a.score > b.score;
             });
 
@@ -654,50 +749,85 @@ namespace Search {
                     beta = legal_moves[0].score + 50;
                 }
 
-                while (true) {
-                    best_score = -32000;
-                    best_move_this_iteration = 0;
-                    int current_alpha = alpha;
-
+                // Fast path for book moves
+                bool is_book_slot = false;
+                Move book_move = 0;
+                if (pv_idx < current_book_moves.size()) {
+                    is_book_slot = true;
+                    // Find the book move that hasn't been excluded yet
                     for (auto& rm : legal_moves) {
-                        Move move = rm.move;
-                        if (std::find(excluded_moves.begin(), excluded_moves.end(), move) != excluded_moves.end()) continue;
-                        
-                        COPY_BOARD;
-                        Evaluation::nnue_stack[0].accumulator.computedAccumulation = 0;
-                        Evaluation::nnue_stack[1].accumulator.computedAccumulation = 0;
-                        if (!Board::make_move(move, 0, &Evaluation::nnue_stack[1].dirtyPiece)) {
-                            RESTORE_BOARD;
-                            continue;
+                        bool found = false;
+                        for (auto& bm : current_book_moves) {
+                            if (bm == rm.move) { found = true; break; }
                         }
-                        
-                        int score = -alpha_beta(current_depth - 1, -beta, -current_alpha, 1, true, move);
-                        RESTORE_BOARD;
+                        if (found && std::find(excluded_moves.begin(), excluded_moves.end(), rm.move) == excluded_moves.end()) {
+                            book_move = rm.move;
+                            break;
+                        }
+                    }
+                }
+
+                if (is_book_slot && book_move != 0) {
+                    Board::UndoInfo undo;
+                    Evaluation::nnue_stack[1].accumulator.computedAccumulation = 0;
+                    if (Board::make_move(book_move, 0, &undo, &Evaluation::nnue_stack[1].dirtyPiece)) {
+                        best_score = -alpha_beta(current_depth - 1, -32000, 32000, 1, false, book_move);
+                        Board::unmake_move(book_move, undo);
+                    } else {
+                        best_score = 0;
+                    }
+                    best_move_this_iteration = book_move;
+                    
+                    // Update the score in legal_moves so sorting works properly next iteration
+                    for (auto& rm : legal_moves) {
+                        if (rm.move == book_move) {
+                            rm.score = best_score;
+                            break;
+                        }
+                    }
+                } else {
+                    while (true) {
+                        best_score = -32000;
+                        best_move_this_iteration = 0;
+                        int current_alpha = alpha;
+
+                        for (auto& rm : legal_moves) {
+                            Move move = rm.move;
+                            if (std::find(excluded_moves.begin(), excluded_moves.end(), move) != excluded_moves.end()) continue;
+                            
+                            Board::UndoInfo undo;
+                            Evaluation::nnue_stack[1].accumulator.computedAccumulation = 0;
+                            if (!Board::make_move(move, 0, &undo, &Evaluation::nnue_stack[1].dirtyPiece)) {
+                                continue;
+                            }
+                            int score = -alpha_beta(current_depth - 1, -beta, -current_alpha, 1, false, move);
+                            Board::unmake_move(move, undo);
+                            
+                            if (stopped) break;
+                            
+                            if (pv_idx == 0) rm.score = score;
+                            
+                            if (score > best_score) {
+                                best_score = score;
+                                best_move_this_iteration = move;
+                            }
+                            if (score > current_alpha) {
+                                current_alpha = score;
+                            }
+                        }
                         
                         if (stopped) break;
                         
-                        if (pv_idx == 0) rm.score = score;
-                        
-                        if (score > best_score) {
-                            best_score = score;
-                            best_move_this_iteration = move;
+                        if (best_score <= alpha && alpha != -32000) {
+                            alpha = -32000;
+                            continue;
                         }
-                        if (score > current_alpha) {
-                            current_alpha = score;
+                        if (best_score >= beta && beta != 32000) {
+                            beta = 32000;
+                            continue;
                         }
+                        break;
                     }
-                    
-                    if (stopped) break;
-                    
-                    if (best_score <= alpha && alpha != -32000) {
-                        alpha = -32000;
-                        continue;
-                    }
-                    if (best_score >= beta && beta != 32000) {
-                        beta = 32000;
-                        continue;
-                    }
-                    break;
                 }
                 
                 if (stopped) break;
@@ -725,6 +855,8 @@ namespace Search {
                         std::cout << "score cp " << best_score;
                     }
                     
+                    if (is_book_slot) std::cout << " book 1";
+                    
                     std::cout << " nodes " << nodes 
                               << " pv " << pv_line << std::endl;
                 }
@@ -739,9 +871,10 @@ namespace Search {
         }
 
         Move best_final_move = global_best_moves[0];
-        if (best_final_move == 0) best_final_move = legal_moves[0].move;
+        if (best_final_move == 0 && legal_moves.size() > 0) best_final_move = legal_moves[0].move;
 
-        int src = GET_MOVE_SOURCE(best_final_move);
+        if (best_final_move != 0) {
+            int src = GET_MOVE_SOURCE(best_final_move);
         int tgt = GET_MOVE_TARGET(best_final_move);
         int promoted = GET_MOVE_PROMOTED(best_final_move);
 
@@ -761,4 +894,5 @@ namespace Search {
         
         std::cout << "bestmove " << move_str << std::endl;
     }
+}
 }

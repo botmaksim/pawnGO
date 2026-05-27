@@ -40,6 +40,7 @@ function App() {
   const currentAnalyzeNodeIdRef = useRef(null);
   const isAnalyzingGameRef = useRef(false);
   const latestPvLinesRef = useRef({});
+  const updatePendingRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
   const wsRef = useRef(null);
 
@@ -80,6 +81,7 @@ function App() {
         const multipvMatch = msg.match(/multipv (\d+)/) || [null, '1'];
         const scoreCpMatch = msg.match(/score cp (-?\d+)/);
         const scoreMateMatch = msg.match(/score mate (-?\d+)/);
+        const bookMatch = msg.match(/book 1/);
         const pvMatch = msg.match(/\bpv (.*)/);
 
         if (depthMatch && pvMatch) {
@@ -90,7 +92,9 @@ function App() {
           try { tempGame.load(isAnalyzingGameRef.current && currentAnalyzeNodeIdRef.current ? nodesRef.current[currentAnalyzeNodeIdRef.current].fen : currentFenRef.current); } catch(e) {}
           const isBlackTurn = tempGame.turn() === 'b';
 
-          if (scoreCpMatch) {
+          if (bookMatch) {
+            scoreStr = 'Book';
+          } else if (scoreCpMatch) {
             let cp = parseInt(scoreCpMatch[1]);
             if (isBlackTurn) cp = -cp;
             
@@ -124,16 +128,14 @@ function App() {
                       to: move.substring(2, 4),
                       promotion: move.length === 5 ? move.substring(4, 5) : undefined
                   };
-                  try {
-                      const m = sanGame.move(moveObj);
-                      return m ? m.san : move;
-                  } catch(e) {
-                      return move;
-                  }
+                  const m = sanGame.move(moveObj);
+                  if (!m) throw new Error("Illegal move for current fen");
+                  return m.san;
               });
               sanPv = newSanMoves.join(' ');
           } catch(e) {
-              console.error('[Engine] Failed to translate PV to SAN', e);
+              // Stale info depth for previous fen, ignore it
+              return;
           }
 
           latestPvLinesRef.current = {
@@ -146,7 +148,13 @@ function App() {
             }
           };
           if (!isAnalyzingGameRef.current) {
-             setPvLines(latestPvLinesRef.current);
+             if (!updatePendingRef.current) {
+                 updatePendingRef.current = true;
+                 requestAnimationFrame(() => {
+                     setPvLines(latestPvLinesRef.current);
+                     updatePendingRef.current = false;
+                 });
+             }
           }
         }
       } else if (msg.startsWith('bestmove')) {
@@ -226,6 +234,7 @@ function App() {
       wsRef.current.send('stop');
       // Set a small delay to ignore old messages and start fresh
       setTimeout(() => {
+        latestPvLinesRef.current = {};
         setPvLines({});
         wsRef.current.send(`position fen ${fen}`);
         wsRef.current.send(`go depth ${analysisDepth}`);
@@ -388,9 +397,11 @@ function App() {
       'root': { id: 'root', fen: startFen, san: 'Start', parentId: null, children: [], evalStr: null, annotation: '', ply: 0 }
     });
     setCurrentNodeId('root');
+    latestPvLinesRef.current = {};
     setPvLines({});
     setMoveFrom('');
     setOptionSquares({});
+    requestAnalysis(startFen);
   }
 
   function applySetup() {
@@ -592,7 +603,7 @@ function App() {
 
   // Visual Engine Arrows
   let customArrows = [];
-  if (Object.keys(pvLines).length > 0) {
+  if (Object.keys(pvLines).length > 0 && !isDragging) {
       const colors = ['rgba(0, 255, 0, 0.6)', 'rgba(0, 100, 255, 0.6)', 'rgba(255, 165, 0, 0.6)'];
       // sort keys to ensure 1 is first
       const keys = Object.keys(pvLines).sort();
@@ -806,9 +817,13 @@ function App() {
           <div className="engine-output">
             {Object.keys(pvLines).length === 0 ? <span style={{color: '#888'}}>Waiting for engine...</span> : null}
             {Object.values(pvLines)
-              .sort((a,b) => game.turn() === 'w' 
-                  ? parseScoreForSort(b.score) - parseScoreForSort(a.score) 
-                  : parseScoreForSort(a.score) - parseScoreForSort(b.score))
+              .sort((a,b) => {
+                  if (a.score === 'Book' && b.score !== 'Book') return -1;
+                  if (b.score === 'Book' && a.score !== 'Book') return 1;
+                  return game.turn() === 'w' 
+                      ? parseScoreForSort(b.score) - parseScoreForSort(a.score) 
+                      : parseScoreForSort(a.score) - parseScoreForSort(b.score);
+              })
               .map((line, i) => (
               <div key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px', marginBottom: '4px' }}>
                 <span style={{ color: '#ffb74d', marginRight: '8px', display: 'inline-block', width: '40px' }}>
