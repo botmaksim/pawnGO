@@ -54,12 +54,12 @@ namespace Polyglot {
         }
     }
 
-    U64 compute_polyglot_key() {
+    U64 compute_polyglot_key(const BoardState& pos) {
         U64 hash = 0ULL;
         
         // Pieces
         for (int piece = P; piece <= k; piece++) {
-            U64 bb = Bitboard::pieceBB[piece];
+            U64 bb = pos.pieceBB[piece];
             int poly_piece = get_polyglot_piece(piece);
             while (bb) {
                 int sq = Bitboard::lsb(bb);
@@ -75,30 +75,30 @@ namespace Polyglot {
         
         // Castling
         // pawnGO: wk=1, wq=2, bk=4, bq=8.
-        if (Bitboard::castle & 1) hash ^= Random64[768]; // White KS
-        if (Bitboard::castle & 2) hash ^= Random64[769]; // White QS
-        if (Bitboard::castle & 4) hash ^= Random64[770]; // Black KS
-        if (Bitboard::castle & 8) hash ^= Random64[771]; // Black QS
+        if (pos.castle & 1) hash ^= Random64[768]; // White KS
+        if (pos.castle & 2) hash ^= Random64[769]; // White QS
+        if (pos.castle & 4) hash ^= Random64[770]; // Black KS
+        if (pos.castle & 8) hash ^= Random64[771]; // Black QS
         
         // En-passant
-        if (Bitboard::enpassant != no_sq) {
-            int ep_file = Bitboard::enpassant % 8;
-            int ep_rank = Bitboard::enpassant / 8;
+        if (pos.enpassant != no_sq) {
+            int ep_file = pos.enpassant % 8;
+            int ep_rank = pos.enpassant / 8;
             bool can_capture = false;
             
             // Check if there's actually an enemy pawn adjacent that could capture
-            if (Bitboard::side == WHITE) {
+            if (pos.side == WHITE) {
                 // White to move, so Black pawn moved double. The ep square is on rank 5 (index 40..47)
                 // White pawns could be on ep_sq - 8 - 1 or ep_sq - 8 + 1
-                U64 white_pawns = Bitboard::pieceBB[P];
-                U64 ep_bb = (1ULL << Bitboard::enpassant);
+                U64 white_pawns = pos.pieceBB[P];
+                U64 ep_bb = (1ULL << pos.enpassant);
                 // Shift down to rank 5 (which is the rank of the white pawns)
                 U64 target = ep_bb >> 8;
                 if ((target & ~0x8080808080808080ULL) >> 1 & white_pawns) can_capture = true;
                 if ((target & ~0x0101010101010101ULL) << 1 & white_pawns) can_capture = true;
             } else {
-                U64 black_pawns = Bitboard::pieceBB[p];
-                U64 ep_bb = (1ULL << Bitboard::enpassant);
+                U64 black_pawns = pos.pieceBB[p];
+                U64 ep_bb = (1ULL << pos.enpassant);
                 U64 target = ep_bb << 8;
                 if ((target & ~0x8080808080808080ULL) >> 1 & black_pawns) can_capture = true;
                 if ((target & ~0x0101010101010101ULL) << 1 & black_pawns) can_capture = true;
@@ -110,14 +110,14 @@ namespace Polyglot {
         }
         
         // Side to move
-        if (Bitboard::side == WHITE) {
+        if (pos.side == WHITE) {
             hash ^= Random64[780];
         }
         
         return hash;
     }
 
-    Move polyglot_to_pawngo_move(uint16_t poly_move) {
+    Move polyglot_to_pawngo_move(const BoardState& pos, uint16_t poly_move) {
         int to_file = poly_move & 7;
         int to_rank = (poly_move >> 3) & 7;
         int from_file = (poly_move >> 6) & 7;
@@ -129,7 +129,7 @@ namespace Polyglot {
         
         // Generate pseudo legal moves and find the matching one to get the full move encoded
         MoveList move_list;
-        MoveGen::generate_moves(move_list, false);
+        MoveGen::generate_moves(pos, move_list, false);
         
         for (int i = 0; i < move_list.count; i++) {
             Move m = move_list.moves[i];
@@ -140,7 +140,7 @@ namespace Polyglot {
                 if (promo == 0 && p == 0) return m;
                 // Polyglot promo: 1=knight, 2=bishop, 3=rook, 4=queen
                 if (promo > 0) {
-                    if (Bitboard::side == WHITE) {
+                    if (pos.side == WHITE) {
                         if (promo == 1 && p == N) return m;
                         if (promo == 2 && p == B) return m;
                         if (promo == 3 && p == R) return m;
@@ -190,12 +190,12 @@ namespace Polyglot {
         book_loaded = true;
     }
 
-    Move get_book_move(const std::string& book_path) {
+    Move get_book_move(const BoardState& pos, const std::string& book_path) {
         load_book(book_path);
         if (!book_loaded || book_cache.empty()) return 0;
         
         int num_entries = book_cache.size();
-        U64 target_key = compute_polyglot_key();
+        U64 target_key = compute_polyglot_key(pos);
         
         int low = 0;
         int high = num_entries - 1;
@@ -233,7 +233,7 @@ namespace Polyglot {
             std::random_device rd;
             std::mt19937 gen(rd());
             std::uniform_int_distribution<> dis(0, entries.size() - 1);
-            return polyglot_to_pawngo_move(entries[dis(gen)].move);
+            return polyglot_to_pawngo_move(pos, entries[dis(gen)].move);
         }
         
         std::random_device rd;
@@ -245,20 +245,20 @@ namespace Polyglot {
         for (const auto& entry : entries) {
             sum += entry.weight;
             if (r < sum) {
-                return polyglot_to_pawngo_move(entry.move);
+                return polyglot_to_pawngo_move(pos, entry.move);
             }
         }
         
-        return polyglot_to_pawngo_move(entries.back().move);
+        return polyglot_to_pawngo_move(pos, entries.back().move);
     }
 
-    std::vector<std::pair<Move, int>> get_all_book_moves(const std::string& book_path) {
+    std::vector<std::pair<Move, int>> get_all_book_moves(const BoardState& pos, const std::string& book_path) {
         std::vector<std::pair<Move, int>> result;
         load_book(book_path);
         if (!book_loaded || book_cache.empty()) return result;
         
         int num_entries = book_cache.size();
-        U64 target_key = compute_polyglot_key();
+        U64 target_key = compute_polyglot_key(pos);
         
         int low = 0;
         int high = num_entries - 1;
@@ -283,7 +283,7 @@ namespace Polyglot {
         while (first_match < num_entries) {
             if (book_cache[first_match].key != target_key) break;
             
-            Move m = polyglot_to_pawngo_move(book_cache[first_match].move);
+            Move m = polyglot_to_pawngo_move(pos, book_cache[first_match].move);
             if (m != 0) {
                 result.push_back({m, book_cache[first_match].weight});
             }

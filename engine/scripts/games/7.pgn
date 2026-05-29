@@ -61,3 +61,59 @@ Kf5 {-M6/192 0.20s} 52. Qd7+ {+M5/12 0.52s} Kg6 {-M4/245 0.076s}
 [TimeControl "10+0.5"]
  *
 
+[Event "?"]
+[Site "?"]
+[Date "2026.05.28"]
+[Round "1"]
+[White "pawnGO"]
+[Black "Stockfish_Level_13"]
+[Result "*"]
+[Termination "unterminated"]
+[TimeControl "10+0.5"]
+ *
+
+[Event "?"]
+[Site "?"]
+[Date "2026.05.28"]
+[Round "1"]
+[White "pawnGO"]
+[Black "Stockfish_Level_13"]
+[Result "*"]
+[Termination "unterminated"]
+[TimeControl "10+0.01"]
+ *
+
+[Event "?"]
+[Site "?"]
+[Date "2026.05.28"]
+[Round "1"]
+[White "pawnGO"]
+[Black "Stockfish_Level_13"]
+[Result "0-1"]
+[ECO "A01"]
+[GameDuration "00:00:02"]
+[GameEndTime "2026-05-28T09:14:14.767 +03"]
+[GameStartTime "2026-05-28T09:14:12.739 +03"]
+[Opening "Nimzowitsch-Larsen attack"]
+[PlyCount "52"]
+[Termination "time forfeit"]
+[TimeControl "1+0.01"]
+
+1. b3 {book} g6 {book} 2. a3 {book} e6 {book} 3. Bb2 {+0.24/10 0.050s}
+Nf6 {-0.15/10 0.029s} 4. d4 {+0.24/10 0.050s} Bg7 {-0.02/8 0.010s}
+5. e3 {+0.24/8 0.050s} b6 {+0.19/8 0.010s} 6. Be2 {+0.15/9 0.050s}
+Qe7 {+0.01/9 0.038s} 7. Nf3 {+0.47/9 0.050s} c5 {+0.18/10 0.032s}
+8. c4 {+0.47/7 0.050s} O-O {+0.04/9 0.042s} 9. Qc1 {+0.20/7 0.050s}
+Nc6 {+0.35/10 0.028s} 10. O-O {+0.25/8 0.050s} d6 {+0.25/9 0.035s}
+11. Rd1 {+0.58/7 0.050s} Bb7 {+0.21/9 0.024s} 12. Nc3 {+0.68/8 0.050s}
+Rad8 {+0.37/9 0.035s} 13. d5 {+1.39/8 0.050s} Ne5 {-0.27/9 0.028s}
+14. Nxe5 {+3.71/11 0.051s} dxe5 {-0.50/10 0.025s} 15. e4 {+3.71/9 0.050s}
+exd5 {-0.39/11 0.047s} 16. cxd5 {+3.41/10 0.050s} h5 {-0.38/10 0.048s}
+17. a4 {+4.50/7 0.050s} Ne8 {-0.75/8 0.013s} 18. a5 {+4.60/9 0.050s}
+Rb8 {-0.48/9 0.023s} 19. axb6 {+6.86/8 0.050s} axb6 {-1.59/10 0.015s}
+20. Nb5 {+7.37/10 0.050s} Kh7 {-1.80/11 0.046s} 21. Ra7 {+7.37/8 0.050s}
+Nd6 {-1.99/9 0.015s} 22. Nxd6 {+6.95/8 0.050s} Qxd6 {-1.98/11 0.013s}
+23. Bc3 {+7.39/8 0.050s} Bc8 {-1.34/10 0.051s} 24. Qa1 {+7.39/7 0.050s}
+f6 {-1.38/10 0.053s} 25. h3 {+7.90/7 0.050s} Rd8 {-1.32/11 0.045s}
+26. Bb5 {+7.60/7 0.050s} Rb7 {-2.06/10 0.025s, White loses on time} 0-1
+

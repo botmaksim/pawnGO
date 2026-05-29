@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  engine_builder:
+    build:
+      context: ./engine
+      dockerfile: Dockerfile.wasm
+    volumes:
+      - ./client/public/wasm:/out
+    command: /bin/sh -c "cp build_wasm/pawngo_wasm.* /out/"
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    ports:
+      - "5175:80"
+    restart: always
+    depends_on:
+      - engine_builder

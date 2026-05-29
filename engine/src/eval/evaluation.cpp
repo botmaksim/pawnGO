@@ -162,16 +162,16 @@ namespace Evaluation {
         -53, -34, -21, -11, -28, -14, -24, -43
     };
 
-    int get_game_phase() {
+    int get_game_phase(const BoardState& pos) {
         int phase = 24;
-        phase -= Bitboard::count_bits(Bitboard::pieceBB[N]) * 1;
-        phase -= Bitboard::count_bits(Bitboard::pieceBB[n]) * 1;
-        phase -= Bitboard::count_bits(Bitboard::pieceBB[B]) * 1;
-        phase -= Bitboard::count_bits(Bitboard::pieceBB[b]) * 1;
-        phase -= Bitboard::count_bits(Bitboard::pieceBB[R]) * 2;
-        phase -= Bitboard::count_bits(Bitboard::pieceBB[r]) * 2;
-        phase -= Bitboard::count_bits(Bitboard::pieceBB[Q]) * 4;
-        phase -= Bitboard::count_bits(Bitboard::pieceBB[q]) * 4;
+        phase -= Bitboard::count_bits(pos.pieceBB[N]) * 1;
+        phase -= Bitboard::count_bits(pos.pieceBB[n]) * 1;
+        phase -= Bitboard::count_bits(pos.pieceBB[B]) * 1;
+        phase -= Bitboard::count_bits(pos.pieceBB[b]) * 1;
+        phase -= Bitboard::count_bits(pos.pieceBB[R]) * 2;
+        phase -= Bitboard::count_bits(pos.pieceBB[r]) * 2;
+        phase -= Bitboard::count_bits(pos.pieceBB[Q]) * 4;
+        phase -= Bitboard::count_bits(pos.pieceBB[q]) * 4;
         return std::max(0, phase);
     }
 
@@ -191,17 +191,17 @@ namespace Evaluation {
         }
     }
 
-    int evaluate_incremental(int ply) {
-        if (!use_nnue || ply >= MAX_PLY) return evaluate();
+    int evaluate_incremental(const BoardState& pos, int ply) {
+        if (!use_nnue || ply >= MAX_PLY) return evaluate(pos);
 
         int pieces[33];
         int squares[33];
         int index = 2;
 
         pieces[0] = 1; // wking
-        squares[0] = Bitboard::lsb(Bitboard::pieceBB[K]);
+        squares[0] = Bitboard::lsb(pos.pieceBB[K]);
         pieces[1] = 7; // bking
-        squares[1] = Bitboard::lsb(Bitboard::pieceBB[k]);
+        squares[1] = Bitboard::lsb(pos.pieceBB[k]);
 
         bool need_full = true;
         if (ply == 0) {
@@ -221,7 +221,7 @@ namespace Evaluation {
             for (int p = P; p <= k; p++) {
                 if (p == K || p == k) continue;
                 
-                U64 bb = Bitboard::pieceBB[p];
+                U64 bb = pos.pieceBB[p];
                 while (bb) {
                     int sq = Bitboard::lsb(bb);
                     pieces[index] = nnue_piece_map[p];
@@ -238,10 +238,10 @@ namespace Evaluation {
         nnue_data[1] = (ply >= 1) ? &nnue_stack[ply - 1] : nullptr;
         nnue_data[2] = (ply >= 2) ? &nnue_stack[ply - 2] : nullptr;
 
-        return nnue_evaluate_incremental(Bitboard::side, pieces, squares, nnue_data);
+        return nnue_evaluate_incremental(pos.side, pieces, squares, nnue_data);
     }
 
-    int evaluate() {
+    int evaluate(const BoardState& pos) {
         int mg_score[2] = {0, 0};
         int eg_score[2] = {0, 0};
 
@@ -249,16 +249,16 @@ namespace Evaluation {
         int black_mat = 0;
 
         for (int pc = P; pc <= Q; pc++) {
-            white_mat += Bitboard::count_bits(Bitboard::pieceBB[pc]) * mg_value[pc - P];
+            white_mat += Bitboard::count_bits(pos.pieceBB[pc]) * mg_value[pc - P];
         }
         for (int pc = p; pc <= q; pc++) {
-            black_mat += Bitboard::count_bits(Bitboard::pieceBB[pc]) * mg_value[pc - p];
+            black_mat += Bitboard::count_bits(pos.pieceBB[pc]) * mg_value[pc - p];
         }
 
         // Lazy Evaluation: If material imbalance is huge, skip complex eval
         int mat_diff = white_mat - black_mat;
         if (std::abs(mat_diff) >= 1500) {
-            return (Bitboard::side == WHITE) ? mat_diff : -mat_diff;
+            return (pos.side == WHITE) ? mat_diff : -mat_diff;
         }
 
         if (use_nnue) {
@@ -268,14 +268,14 @@ namespace Evaluation {
 
             // Kings must be at index 0 and 1
             pieces[0] = 1; // wking
-            squares[0] = Bitboard::lsb(Bitboard::pieceBB[K]);
+            squares[0] = Bitboard::lsb(pos.pieceBB[K]);
             pieces[1] = 7; // bking
-            squares[1] = Bitboard::lsb(Bitboard::pieceBB[k]);
+            squares[1] = Bitboard::lsb(pos.pieceBB[k]);
 
             for (int p = P; p <= k; p++) {
                 if (p == K || p == k) continue;
                 
-                U64 bb = Bitboard::pieceBB[p];
+                U64 bb = pos.pieceBB[p];
                 while (bb) {
                     int sq = Bitboard::lsb(bb);
                     pieces[index] = nnue_piece_map[p];
@@ -286,7 +286,7 @@ namespace Evaluation {
             }
             pieces[index] = 0; // End of array marker
 
-            int nnue_score = nnue_evaluate(Bitboard::side, pieces, squares);
+            int nnue_score = nnue_evaluate(pos.side, pieces, squares);
             return nnue_score;
         }
 
@@ -298,7 +298,7 @@ namespace Evaluation {
 
         // Evaluate White
         for (int pc = P; pc <= K; pc++) {
-            U64 bb = Bitboard::pieceBB[pc];
+            U64 bb = pos.pieceBB[pc];
             int pType = pc - P;
             while (bb) {
                 int sq = Bitboard::lsb(bb);
@@ -311,7 +311,7 @@ namespace Evaluation {
 
         // Evaluate Black
         for (int pc = p; pc <= k; pc++) {
-            U64 bb = Bitboard::pieceBB[pc];
+            U64 bb = pos.pieceBB[pc];
             int pType = pc - p;
             while (bb) {
                 int sq = Bitboard::lsb(bb);
@@ -321,7 +321,7 @@ namespace Evaluation {
             }
         }
 
-        int phase = get_game_phase();
+        int phase = get_game_phase(pos);
         
         int mg_total = mg_score[WHITE] - mg_score[BLACK];
         int eg_total = eg_score[WHITE] - eg_score[BLACK];
@@ -329,7 +329,7 @@ namespace Evaluation {
         // phase is 24 at start (100% MG), 0 at endgame (100% EG)
         int score = (mg_total * phase + eg_total * (24 - phase)) / 24;
 
-        return (Bitboard::side == WHITE) ? score : -score;
+        return (pos.side == WHITE) ? score : -score;
     }
 
 } // namespace Evaluation

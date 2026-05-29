@@ -1,0 +1,11 @@
+FROM emscripten/emsdk:latest
+
+WORKDIR /app
+COPY . .
+
+RUN cp CMakeLists.wasm.txt CMakeLists.txt && \
+    mkdir build_wasm && cd build_wasm && \
+    emcmake cmake -G "Unix Makefiles" .. && \
+    emmake make -j4
+
+# The output will be pawngo_wasm.js, pawngo_wasm.wasm, pawngo_wasm.data, pawngo_wasm.worker.js

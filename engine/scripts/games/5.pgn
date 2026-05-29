@@ -83,3 +83,67 @@ Qf6 {+M3/182 0.24s} 85. Kd3 {-M4/20 0.51s} Qc8 {+M3/245 0.12s}
 [TimeControl "10+0.5"]
  *
 
+[Event "?"]
+[Site "?"]
+[Date "2026.05.28"]
+[Round "1"]
+[White "pawnGO"]
+[Black "Stockfish_Level_13"]
+[Result "*"]
+[ECO "B00"]
+[GameDuration "00:00:00"]
+[GameEndTime "2026-05-28T09:13:18.588 +03"]
+[GameStartTime "2026-05-28T09:13:18.002 +03"]
+[Opening "St. George (Baker) defense"]
+[PlyCount "4"]
+[Termination "unterminated"]
+[TimeControl "10+0.5"]
+
+1. e4 {book} a6 {book} 2. h3 {book} e5 {book, No result} *
+
+[Event "?"]
+[Site "?"]
+[Date "2026.05.28"]
+[Round "1"]
+[White "pawnGO"]
+[Black "Stockfish_Level_13"]
+[Result "*"]
+[Termination "unterminated"]
+[TimeControl "10+0.01"]
+ *
+
+[Event "?"]
+[Site "?"]
+[Date "2026.05.28"]
+[Round "1"]
+[White "pawnGO"]
+[Black "Stockfish_Level_13"]
+[Result "0-1"]
+[ECO "A00"]
+[GameDuration "00:00:02"]
+[GameEndTime "2026-05-28T09:14:10.157 +03"]
+[GameStartTime "2026-05-28T09:14:08.035 +03"]
+[Opening "Amar (Paris) Opening"]
+[PlyCount "54"]
+[Termination "time forfeit"]
+[TimeControl "1+0.01"]
+
+1. Nh3 {book} d5 {book} 2. a3 {book} f5 {book} 3. d4 {+0.13/10 0.050s}
+e6 {-0.36/9 0.030s} 4. c4 {+0.28/9 0.050s} Be7 {-0.18/8 0.016s}
+5. g3 {+0.40/8 0.050s} dxc4 {-0.29/10 0.031s} 6. Nf4 {+0.30/9 0.050s}
+g5 {+1.52/8 0.009s} 7. Nh5 {+0.03/9 0.050s} c5 {+0.31/10 0.040s}
+8. Bg2 {+0.19/8 0.050s} cxd4 {+0.64/9 0.036s} 9. Nd2 {-0.25/9 0.050s}
+Nf6 {+0.64/8 0.018s} 10. Nxf6+ {-0.06/10 0.050s} Bxf6 {+0.75/10 0.045s}
+11. Nxc4 {-0.06/10 0.050s} O-O {+0.98/9 0.040s} 12. h4 {+0.58/8 0.050s}
+g4 {+0.58/10 0.041s} 13. Bf4 {+1.67/9 0.050s} Nc6 {-0.01/9 0.027s}
+14. Bd6 {+1.12/8 0.050s} Rf7 {+0.96/10 0.045s} 15. Rc1 {+1.12/7 0.050s}
+Rd7 {+1.95/9 0.031s} 16. Bc5 {+0.68/7 0.050s} e5 {+1.56/9 0.037s}
+17. Bxc6 {-1.38/8 0.050s} bxc6 {+0.97/11 0.042s} 18. Qc2 {-1.82/7 0.050s}
+Rd5 {+2.35/9 0.012s} 19. b4 {-1.26/9 0.050s} Be6 {+1.99/10 0.046s}
+20. O-O {-1.26/8 0.050s} Qc7 {+1.57/9 0.022s} 21. a4 {-1.19/6 0.050s}
+Bg7 {+1.55/9 0.041s} 22. e4 {-0.83/8 0.050s} fxe4 {+1.42/10 0.021s}
+23. Qxe4 {+0.13/8 0.050s} Qf7 {+2.30/10 0.023s} 24. Nd6 {-1.21/8 0.050s}
+Qf3 {+2.43/10 0.017s} 25. a5 {-2.38/9 0.050s} Qxe4 {+2.26/10 0.025s}
+26. Nxe4 {-0.88/10 0.050s} Bf5 {+2.09/11 0.045s} 27. Rfe1 {-1.91/10 0.050s}
+a6 {+2.11/10 0.038s, White loses on time} 0-1
+

@@ -44,6 +44,30 @@ function App() {
   const [isDragging, setIsDragging] = useState(false);
   const wsRef = useRef(null);
 
+  // New UI features
+  const [showArrows, setShowArrows] = useState(true);
+  const [playMode, setPlayMode] = useState('Analysis');
+  const playModeRef = useRef(playMode);
+  useEffect(() => { 
+    playModeRef.current = playMode; 
+    
+    // If we just switched to playing as the side whose turn it is, force the engine to think!
+    if (playMode !== 'Analysis' && !isSetupMode) {
+      const currentTurn = game.turn();
+      if ((playMode === 'Play as White' && currentTurn === 'w') ||
+          (playMode === 'Play as Black' && currentTurn === 'b')) {
+          if (wsRef.current && wsRef.current.readyState === 1) {
+              wsRef.current.send('stop');
+              setTimeout(() => {
+                  wsRef.current.send(`position fen ${game.fen()}`);
+                  wsRef.current.send(`go depth ${analysisDepth}`);
+              }, 50);
+          }
+      }
+    }
+  }, [playMode, game, isSetupMode, analysisDepth]);
+  const [pendingEngineMove, setPendingEngineMove] = useState(null);
+
   // Derived state
   const currentNode = nodes[currentNodeId];
   const currentFen = isSetupMode ? setupFenInput : currentNode.fen;
@@ -62,16 +86,46 @@ function App() {
   }, [currentFen]);
 
   useEffect(() => {
-    wsRef.current = new WebSocket('ws://localhost:8080');
+    if (pendingEngineMove) {
+      const from = pendingEngineMove.substring(0, 2);
+      const to = pendingEngineMove.substring(2, 4);
+      const promotion = pendingEngineMove.length > 4 ? pendingEngineMove[4] : undefined;
+      handleMove({ from, to, promotion });
+      setPendingEngineMove(null);
+    }
+  }, [pendingEngineMove]);
 
-    wsRef.current.onopen = () => {
-      console.log('Connected to Engine Server');
-      wsRef.current.send('uci');
-      wsRef.current.send('isready');
-      wsRef.current.send(`setoption name MultiPV value ${multiPvCount}`);
-      // Start analysis for the initial position immediately
-      requestAnalysis(currentFenRef.current);
+  useEffect(() => {
+    // Web Worker for WebAssembly Engine
+    const worker = new Worker('engineWorker.js');
+    
+    // Simulate WebSocket API for existing code
+    wsRef.current = {
+      readyState: 1, // OPEN
+      send: (cmd) => worker.postMessage(cmd),
+      close: () => worker.terminate()
     };
+
+    worker.onmessage = (event) => {
+      const msg = event.data;
+      if (msg === 'isready') {
+          console.log('Engine is ready (Wasm)');
+          // Send initial setup
+          wsRef.current.send('uci');
+          wsRef.current.send(`setoption name MultiPV value ${multiPvCount}`);
+          requestAnalysis(currentFenRef.current);
+          return;
+      }
+      
+      // Pass the message to the existing handler
+      if (wsRef.current.onmessage) {
+          wsRef.current.onmessage({ data: msg });
+      }
+    };
+
+    // We don't have an exact "onopen" for Workers, it's ready immediately
+    // but the engine takes time to initialize (download NNUE, etc.).
+    // So we wait for 'isready' from the worker above.
 
     wsRef.current.onmessage = (event) => {
       const msg = event.data;
@@ -151,7 +205,10 @@ function App() {
              if (!updatePendingRef.current) {
                  updatePendingRef.current = true;
                  requestAnimationFrame(() => {
-                     setPvLines(latestPvLinesRef.current);
+                     // Only update pv lines if in analysis mode to prevent hints during play
+                     if (playModeRef.current === 'Analysis') {
+                         setPvLines(latestPvLinesRef.current);
+                     }
                      updatePendingRef.current = false;
                  });
              }
@@ -167,6 +224,22 @@ function App() {
             }
           }));
           processNextAnalysisNode();
+        } else if (!isAnalyzingGameRef.current && playModeRef.current !== 'Analysis') {
+          // Play against engine mode
+          try {
+              const tempGame = new Chess();
+              tempGame.load(currentFenRef.current);
+              const turn = tempGame.turn(); // 'w' or 'b'
+              if ((playModeRef.current === 'Play as White' && turn === 'b') ||
+                  (playModeRef.current === 'Play as Black' && turn === 'w')) {
+                  const bestmove = msg.split(' ')[1];
+                  if (bestmove && bestmove !== '(none)') {
+                      setPendingEngineMove(bestmove);
+                  }
+              }
+          } catch (e) {
+              console.error('[Engine] Failed to process play mode bestmove', e);
+          }
         }
       }
     };
@@ -206,7 +279,7 @@ function App() {
     
     // Clear old pvLines so they don't leak
     latestPvLinesRef.current = {};
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+    if (wsRef.current && wsRef.current.readyState === 1) {
       wsRef.current.send(`position fen ${nodesRef.current[nextId].fen}`);
       wsRef.current.send(`go depth ${analysisDepth}`); // analyze current node
     }
@@ -220,7 +293,7 @@ function App() {
     setIsAnalyzingGame(true);
     isAnalyzingGameRef.current = true;
     
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+    if (wsRef.current && wsRef.current.readyState === 1) {
         wsRef.current.send('stop'); // Stop any ongoing background analysis
         setTimeout(() => {
             processNextAnalysisNode();
@@ -228,9 +301,22 @@ function App() {
     }
   };
 
+  const cancelFullGameAnalysis = () => {
+    analyzeQueueRef.current = [];
+    setIsAnalyzingGame(false);
+    isAnalyzingGameRef.current = false;
+    
+    if (wsRef.current && wsRef.current.readyState === 1) {
+        wsRef.current.send('stop');
+        setTimeout(() => {
+            requestAnalysis(nodesRef.current[currentNodeId].fen); // Resume normal analysis
+        }, 100);
+    }
+  };
+
   const requestAnalysis = (fen) => {
     if (isAnalyzingGameRef.current) return; // don't interrupt full game analysis
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+    if (wsRef.current && wsRef.current.readyState === 1) {
       wsRef.current.send('stop');
       // Set a small delay to ignore old messages and start fresh
       setTimeout(() => {
@@ -376,6 +462,12 @@ function App() {
   function onPieceDropSetup(source, target, piece) {
      return onDrop(source, target, piece);
   }
+  
+  // Disable drag if it's engine's turn
+  const isEngineTurn = !isSetupMode && (
+    (playMode === 'Play as White' && game.turn() === 'w') ||
+    (playMode === 'Play as Black' && game.turn() === 'b')
+  );
 
   function triggerError() {
     setIsShaking(true);
@@ -419,7 +511,7 @@ function App() {
       requestAnalysis(nodes[currentNodeId].fen); // Resume normal analysis on cancel
     } else {
       setIsSetupMode(true);
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      if (wsRef.current && wsRef.current.readyState === 1) {
         wsRef.current.send('stop'); // Stop engine while setting up board
       }
     }
@@ -603,7 +695,7 @@ function App() {
 
   // Visual Engine Arrows
   let customArrows = [];
-  if (Object.keys(pvLines).length > 0 && !isDragging) {
+  if (showArrows && playMode === 'Analysis' && Object.keys(pvLines).length > 0 && !isDragging) {
       const colors = ['rgba(0, 255, 0, 0.6)', 'rgba(0, 100, 255, 0.6)', 'rgba(255, 165, 0, 0.6)'];
       // sort keys to ensure 1 is first
       const keys = Object.keys(pvLines).sort();
@@ -637,6 +729,14 @@ function App() {
   return (
     <div className="app-container">
       <div className={`board-container ${isShaking ? 'shake' : ''}`}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+            <a href="https://github.com/botmaksim/pawnGO" target="_blank" rel="noreferrer" style={{ color: '#aaa', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
+                <svg height="20" viewBox="0 0 16 16" version="1.1" width="20" aria-hidden="true" fill="currentColor">
+                    <path fillRule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+                </svg>
+                GitHub
+            </a>
+        </div>
         {!isSetupMode && (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <div className={`turn-indicator ${game.turn() === 'w' ? 'white' : 'black'}`} style={{ margin: 0 }}>
@@ -658,12 +758,14 @@ function App() {
           />
           <div style={{ position: 'relative', flexGrow: 1 }}>
             <Chessboard 
+              id="MainBoard"
               position={currentFen} 
+              isDraggablePiece={() => !isEngineTurn}
               boardOrientation={boardOrientation}
               onPieceDrop={isSetupMode ? onPieceDropSetup : onDrop}
               onPieceDragBegin={() => setIsDragging(true)}
               onPieceDragEnd={() => setIsDragging(false)}
-              onSquareClick={onSquareClick}
+              onSquareClick={isSetupMode ? null : onSquareClick}
               customSquareStyles={customStyles}
               customDarkSquareStyle={{ backgroundColor: '#476375' }}
               customLightSquareStyle={{ backgroundColor: '#a6bfce' }}
@@ -757,6 +859,25 @@ function App() {
           </div>
           <p>Status: {wsRef.current && wsRef.current.readyState === WebSocket.OPEN ? 'Connected' : 'Connecting...'}</p>
           
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem', padding: '0.5rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#fff' }}>
+              <input type="checkbox" checked={showArrows} onChange={e => setShowArrows(e.target.checked)} />
+              Show Arrows
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ color: '#aaa' }}>Mode:</span>
+              <select 
+                value={playMode} 
+                onChange={e => setPlayMode(e.target.value)}
+                style={{ background: '#2c3e50', color: '#fff', border: '1px solid #34495e', padding: '4px 8px', borderRadius: '4px' }}
+              >
+                <option value="Analysis">Analysis</option>
+                <option value="Play as White">Play as White</option>
+                <option value="Play as Black">Play as Black</option>
+              </select>
+            </div>
+          </div>
+          
           <div className="history-controls">
             <button onClick={() => jumpTo('root')}>&lt;&lt;</button>
             <button onClick={() => jumpTo(currentNode.parentId || 'root')}>&lt;</button>
@@ -776,18 +897,35 @@ function App() {
           <button onClick={resetGame} style={{ marginTop: '1rem', width: '100%' }}>New Game</button>
         </div>
 
-        <div className="glass-panel">
+        {playMode === 'Analysis' && (
+          <div className="glass-panel">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <h2 style={{ margin: 0 }}>Engine Lines (Multi-PV)</h2>
-                <button 
-                  onClick={startFullGameAnalysis} 
-                  disabled={isAnalyzingGame || Object.keys(nodes).length <= 1}
-                  className="modern-button"
-                  style={{ padding: '6px 12px', fontSize: '0.9rem', width: 'fit-content', background: 'rgba(27, 172, 166, 0.2)', border: '1px solid #1baca6' }}
-                >
-                  Analyze Game
-                </button>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+                    <h2 style={{ margin: 0 }}>Engine Lines (Multi-PV)</h2>
+                    <span style={{ fontSize: '0.8rem', color: '#aaa', fontStyle: 'italic' }}>
+                        (Analyzes each move up to Depth {analysisDepth})
+                    </span>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button 
+                      onClick={startFullGameAnalysis} 
+                      disabled={isAnalyzingGame || Object.keys(nodes).length <= 1}
+                      className="modern-button"
+                      style={{ padding: '6px 12px', fontSize: '0.9rem', width: 'fit-content', background: 'rgba(27, 172, 166, 0.2)', border: '1px solid #1baca6' }}
+                    >
+                      Analyze Game
+                    </button>
+                    {isAnalyzingGame && (
+                        <button 
+                          onClick={cancelFullGameAnalysis} 
+                          className="modern-button"
+                          style={{ padding: '6px 12px', fontSize: '0.9rem', width: 'fit-content', background: 'rgba(229, 57, 53, 0.2)', border: '1px solid #e53935' }}
+                        >
+                          Cancel
+                        </button>
+                    )}
+                </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#1baca6', backgroundColor: 'rgba(27, 172, 166, 0.1)', padding: '4px 10px', borderRadius: '6px' }}>
@@ -839,6 +977,7 @@ function App() {
             ))}
           </div>
         </div>
+        )}
       </div>
 
       {isAnalyzingGame && (

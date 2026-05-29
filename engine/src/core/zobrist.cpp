@@ -51,13 +51,13 @@ namespace Zobrist {
         side_key = get_random_U64_number();
     }
 
-    U64 generate_hash_key() {
+    U64 generate_hash_key(const BoardState& pos) {
         U64 final_key = 0ULL;
         U64 bitboard;
 
         // Hash pieces
         for (int piece = P; piece <= k; piece++) {
-            bitboard = Bitboard::pieceBB[piece];
+            bitboard = pos.pieceBB[piece];
             while (bitboard) {
                 int sq = Bitboard::lsb(bitboard);
                 final_key ^= piece_keys[piece][sq];
@@ -66,15 +66,15 @@ namespace Zobrist {
         }
 
         // Hash enpassant
-        if (Bitboard::enpassant != no_sq) {
-            final_key ^= enpassant_keys[Bitboard::enpassant];
+        if (pos.enpassant != no_sq) {
+            final_key ^= enpassant_keys[pos.enpassant];
         }
 
         // Hash castling
-        final_key ^= castle_keys[Bitboard::castle];
+        final_key ^= castle_keys[pos.castle];
 
         // Hash side
-        if (Bitboard::side == BLACK) {
+        if (pos.side == BLACK) {
             final_key ^= side_key;
         }
 

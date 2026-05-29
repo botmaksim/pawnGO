@@ -48,3 +48,74 @@ Be7 {-M6/18 0.52s} 49. Rxe7 {+M5/35 0.30s} Bxc4 {-M4/19 0.53s}
 50. Qf5 {+M3/245 0.085s} Bg8 {-M2/27 0.52s} 51. Qxe5 {+M1/245 0.035s}
 Ba2 {-M2/27 0.52s} 52. Qg5# {+M1/245 0.022s, White mates} 1-0
 
+[Event "?"]
+[Site "?"]
+[Date "2026.05.28"]
+[Round "1"]
+[White "Stockfish_Level_13"]
+[Black "pawnGO"]
+[Result "*"]
+[ECO "A00"]
+[GameDuration "00:00:00"]
+[GameEndTime "2026-05-28T09:13:19.688 +03"]
+[GameStartTime "2026-05-28T09:13:19.632 +03"]
+[Opening "Van't Kruijs Opening"]
+[PlyCount "4"]
+[Termination "unterminated"]
+[TimeControl "10+0.5"]
+
+1. e3 {book} h6 {book} 2. b3 {book} g6 {book, No result} *
+
+[Event "?"]
+[Site "?"]
+[Date "2026.05.28"]
+[Round "1"]
+[White "Stockfish_Level_13"]
+[Black "pawnGO"]
+[Result "*"]
+[ECO "A00"]
+[GameDuration "00:00:00"]
+[GameEndTime "2026-05-28T09:13:56.878 +03"]
+[GameStartTime "2026-05-28T09:13:56.871 +03"]
+[Opening "Anti-Borg (Desprez) Opening"]
+[PlyCount "4"]
+[Termination "unterminated"]
+[TimeControl "10+0.01"]
+
+1. h4 {book} f6 {book} 2. e3 {book} g6 {book, No result} *
+
+[Event "?"]
+[Site "?"]
+[Date "2026.05.28"]
+[Round "1"]
+[White "Stockfish_Level_13"]
+[Black "pawnGO"]
+[Result "1-0"]
+[ECO "A10"]
+[GameDuration "00:00:02"]
+[GameEndTime "2026-05-28T09:14:21.848 +03"]
+[GameStartTime "2026-05-28T09:14:19.686 +03"]
+[Opening "English Opening"]
+[PlyCount "55"]
+[Termination "time forfeit"]
+[TimeControl "1+0.01"]
+
+1. c4 {book} d6 {book} 2. h4 {book} Bf5 {book} 3. Nf3 {+0.49/9 0.025s}
+c6 {-0.47/9 0.050s} 4. d4 {+0.29/9 0.029s} Nf6 {-0.09/9 0.050s}
+5. Nc3 {+0.19/8 0.032s} Na6 {-0.05/8 0.050s} 6. d5 {+0.40/8 0.033s}
+e5 {+0.15/9 0.050s} 7. a3 {+0.22/9 0.035s} cxd5 {+0.97/9 0.050s}
+8. Nxd5 {+0.29/9 0.028s} Nxd5 {+1.29/9 0.050s} 9. cxd5 {+0.07/10 0.036s}
+Qa5+ {+0.96/9 0.050s} 10. Nd2 {+1.60/9 0.022s} Rc8 {+2.97/10 0.050s}
+11. Qb3 {-0.67/9 0.038s} Nc5 {+2.97/8 0.050s} 12. Qb4 {-0.37/9 0.029s}
+b6 {+0.77/9 0.050s} 13. e4 {+0.39/8 0.017s} Nxe4 {+1.17/10 0.050s}
+14. Bd3 {+0.48/7 0.010s} Qxd5 {-2.42/9 0.050s} 15. Qa4+ {+2.72/12 0.045s}
+Bd7 {-2.22/12 0.050s} 16. Qxe4 {+2.57/10 0.014s} Qxe4+ {-3.07/10 0.050s}
+17. Bxe4 {+2.65/11 0.023s} Be6 {-3.07/10 0.050s} 18. Bb7 {+2.53/11 0.045s}
+Rc2 {-2.59/10 0.050s} 19. f4 {+2.15/10 0.044s} f5 {-2.62/8 0.050s}
+20. b4 {+2.41/11 0.046s} g6 {-1.33/9 0.050s} 21. Ba6 {+1.78/8 0.020s}
+Bh6 {-0.45/9 0.050s} 22. Bd3 {+2.23/10 0.049s} Rc3 {+2.73/9 0.050s}
+23. Rh3 {+2.03/10 0.017s} O-O {-0.73/9 0.050s} 24. fxe5 {+1.30/10 0.044s}
+Rd8 {-1.99/9 0.050s} 25. Bb2 {+2.02/9 0.023s} Rcc8 {-1.20/9 0.050s}
+26. exd6 {+2.17/10 0.045s} Rxd6 {-2.21/8 0.050s} 27. Rd1 {+2.01/9 0.036s}
+Rcd8 {-1.13/8 0.050s} 28. Nc4 {+2.80/10 0.029s, Black loses on time} 1-0
+

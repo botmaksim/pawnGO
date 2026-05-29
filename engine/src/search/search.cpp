@@ -22,10 +22,9 @@ namespace Search {
     
     std::atomic<long long> nodes(0);
 
-    thread_local int history_table[2][64][64];
-    thread_local Move killer_moves[2][100];
-
-    thread_local Move counter_move[64][64];
+    std::atomic<int> history_table[2][64][64];
+    std::atomic<Move> killer_moves[2][100];
+    std::atomic<Move> counter_move[64][64];
 
     int LMR_table[64][64];
 
@@ -62,29 +61,29 @@ namespace Search {
         return 0;
     }
 
-    inline int get_piece_on_square(int sq) {
-        if (!(Bitboard::occupancies[2] & (1ULL << sq))) return -1;
-        if (Bitboard::side == WHITE) {
-            if (Bitboard::pieceBB[p] & (1ULL << sq)) return p;
-            if (Bitboard::pieceBB[n] & (1ULL << sq)) return n;
-            if (Bitboard::pieceBB[b] & (1ULL << sq)) return b;
-            if (Bitboard::pieceBB[r] & (1ULL << sq)) return r;
-            if (Bitboard::pieceBB[q] & (1ULL << sq)) return q;
+    inline int get_piece_on_square(const BoardState& pos, int sq) {
+        if (!(pos.occupancies[2] & (1ULL << sq))) return -1;
+        if (pos.side == WHITE) {
+            if (pos.pieceBB[p] & (1ULL << sq)) return p;
+            if (pos.pieceBB[n] & (1ULL << sq)) return n;
+            if (pos.pieceBB[b] & (1ULL << sq)) return b;
+            if (pos.pieceBB[r] & (1ULL << sq)) return r;
+            if (pos.pieceBB[q] & (1ULL << sq)) return q;
             return p;
         } else {
-            if (Bitboard::pieceBB[P] & (1ULL << sq)) return P;
-            if (Bitboard::pieceBB[N] & (1ULL << sq)) return N;
-            if (Bitboard::pieceBB[B] & (1ULL << sq)) return B;
-            if (Bitboard::pieceBB[R] & (1ULL << sq)) return R;
-            if (Bitboard::pieceBB[Q] & (1ULL << sq)) return Q;
+            if (pos.pieceBB[P] & (1ULL << sq)) return P;
+            if (pos.pieceBB[N] & (1ULL << sq)) return N;
+            if (pos.pieceBB[B] & (1ULL << sq)) return B;
+            if (pos.pieceBB[R] & (1ULL << sq)) return R;
+            if (pos.pieceBB[Q] & (1ULL << sq)) return Q;
             return P;
         }
     }
 
-    int score_move(Move move, Move hash_move, int ply, Move prev_move = 0) {
+    int score_move(const BoardState& pos, Move move, Move hash_move, int ply, Move prev_move) {
         if (move == hash_move) return 30000;
         if (GET_MOVE_CAPTURE(move)) {
-            int victim = get_piece_on_square(GET_MOVE_TARGET(move));
+            int victim = get_piece_on_square(pos, GET_MOVE_TARGET(move));
             int victim_val = (victim != -1) ? get_piece_value(victim) : 100; // En passant victim is a pawn
             return 20000 + victim_val * 10 - get_piece_value(GET_MOVE_PIECE(move));
         }
@@ -103,24 +102,64 @@ namespace Search {
 
         int src = GET_MOVE_SOURCE(move);
         int tgt = GET_MOVE_TARGET(move);
-        return history_table[Bitboard::side][src][tgt];
+        return history_table[pos.side][src][tgt].load(std::memory_order_relaxed);
     }
 
     struct MovePicker {
+        const BoardState* pos;
+        Move hash_move;
+        int ply;
+        Move prev_move;
+        bool only_captures;
+        bool in_check;
+        
         MoveList move_list;
         int scores[256];
         int index;
+        int stage; // 0: captures, 1: quiets, 2: done
 
-        MovePicker(Move hash_move, int ply, Move prev_move, bool only_captures, bool in_check = false) {
-            MoveGen::generate_moves(move_list, only_captures);
-            for (int i = 0; i < move_list.count; i++) {
-                scores[i] = score_move(move_list.moves[i], hash_move, ply, prev_move);
+        MovePicker(const BoardState& pos, Move hash_move, int ply, Move prev_move, bool only_captures, bool in_check = false) 
+            : pos(&pos), hash_move(hash_move), ply(ply), prev_move(prev_move), only_captures(only_captures), in_check(in_check), index(0), stage(0) {
+            
+            if (in_check) {
+                // Generate all evasions immediately
+                MoveGen::generate_moves(*this->pos, move_list, false);
+                stage = 2; // All moves generated
+            } else {
+                // Generate captures first
+                MoveGen::generate_moves(*this->pos, move_list, true);
+                if (only_captures) stage = 2; // No quiets needed
             }
-            index = 0;
+            
+            for (int i = 0; i < move_list.count; i++) {
+                scores[i] = score_move(*this->pos, move_list.moves[i], hash_move, ply, prev_move);
+            }
         }
 
         Move next_move() {
-            if (index >= move_list.count) return 0;
+            if (index >= move_list.count) {
+                if (stage == 0) {
+                    // Transition to quiets
+                    stage = 1;
+                    index = 0;
+                    MoveList all_moves;
+                    MoveGen::generate_moves(*pos, all_moves, false);
+                    move_list.count = 0;
+                    for (int i = 0; i < all_moves.count; i++) {
+                        Move m = all_moves.moves[i];
+                        if (!GET_MOVE_CAPTURE(m)) {
+                            move_list.add(m);
+                            scores[move_list.count - 1] = score_move(*pos, m, hash_move, ply, prev_move);
+                        }
+                    }
+                    if (index >= move_list.count) {
+                        stage = 2;
+                        return 0;
+                    }
+                } else {
+                    return 0;
+                }
+            }
             
             int best_score = -100000;
             int best_idx = index;
@@ -139,15 +178,15 @@ namespace Search {
         }
     };
 
-    int quiescence(int alpha, int beta, int ply) {
+    int quiescence(BoardState& pos, int alpha, int beta, int ply) {
         if (stopped) return 0;
         nodes++;
 
-        int king_sq = Bitboard::side == WHITE ? Bitboard::lsb(Bitboard::pieceBB[K]) : Bitboard::lsb(Bitboard::pieceBB[k]);
-        bool in_check = MoveGen::is_square_attacked(king_sq, Bitboard::side ^ 1);
+        int king_sq = pos.side == WHITE ? Bitboard::lsb(pos.pieceBB[K]) : Bitboard::lsb(pos.pieceBB[k]);
+        bool in_check = MoveGen::is_square_attacked(pos, king_sq, pos.side ^ 1);
 
         Move hash_move = 0;
-        int tt_score = TT::read_hash_entry(Bitboard::hash_key, alpha, beta, 0, ply, hash_move);
+        int tt_score = TT::read_hash_entry(pos.hash_key, alpha, beta, 0, ply, hash_move);
         if (tt_score != -32000) {
             return tt_score;
         }
@@ -156,7 +195,7 @@ namespace Search {
         Move best_move = 0;
 
         if (!in_check) {
-            int eval = Evaluation::evaluate_incremental(ply);
+            int eval = Evaluation::evaluate_incremental(pos, ply);
             if (eval >= beta) return beta;
             if (eval > alpha) alpha = eval;
             
@@ -164,7 +203,7 @@ namespace Search {
             if (eval + 1000 < alpha) return alpha;
         }
 
-        MovePicker move_picker(hash_move, ply, 0, !in_check, in_check);
+        MovePicker move_picker(pos, hash_move, ply, 0, !in_check, in_check);
         int legal_moves = 0;
 
         while (Move move = move_picker.next_move()) {
@@ -172,22 +211,22 @@ namespace Search {
 
             int tgt = GET_MOVE_TARGET(move);
             int attacker = GET_MOVE_PIECE(move);
-            int victim = get_piece_on_square(tgt);
+            int victim = get_piece_on_square(pos, tgt);
 
             Board::UndoInfo undo;
             if (Evaluation::use_nnue && ply < Evaluation::MAX_PLY - 1) {
                 Evaluation::nnue_stack[ply + 1].accumulator.computedAccumulation = 0;
             }
-            if (!Board::make_move(move, 1, &undo, (ply < Evaluation::MAX_PLY - 1) ? &Evaluation::nnue_stack[ply + 1].dirtyPiece : nullptr)) {
+            if (!Board::make_move(pos, move, 1, &undo, (ply < Evaluation::MAX_PLY - 1) ? &Evaluation::nnue_stack[ply + 1].dirtyPiece : nullptr)) {
                 continue;
             }
             legal_moves++;
             nodes++;
-            int score = -quiescence(-beta, -alpha, ply + 1);
-            Board::unmake_move(move, undo);
+            int score = -quiescence(pos, -beta, -alpha, ply + 1);
+            Board::unmake_move(pos, move, undo);
 
             if (score >= beta) {
-                TT::write_hash_entry(Bitboard::hash_key, beta, 0, ply, hash_flag_beta, move);
+                TT::write_hash_entry(pos.hash_key, beta, 0, ply, hash_flag_beta, move);
                 return beta;
             }
             if (score > alpha) {
@@ -201,39 +240,39 @@ namespace Search {
         }
 
         int hash_flag = (alpha > old_alpha) ? hash_flag_exact : hash_flag_alpha;
-        TT::write_hash_entry(Bitboard::hash_key, alpha, 0, ply, hash_flag, best_move);
+        TT::write_hash_entry(pos.hash_key, alpha, 0, ply, hash_flag, best_move);
 
         return alpha;
     }
 
-    int alpha_beta(int depth, int alpha, int beta, int ply, bool do_null, Move prev_move) {
+    int alpha_beta(BoardState& pos, int depth, int alpha, int beta, int ply, bool do_null, Move prev_move) {
         if (stopped) return 0;
         
-        int king_sq = Bitboard::side == WHITE ? Bitboard::lsb(Bitboard::pieceBB[K]) : Bitboard::lsb(Bitboard::pieceBB[k]);
-        bool in_check = MoveGen::is_square_attacked(king_sq, Bitboard::side ^ 1);
+        int king_sq = pos.side == WHITE ? Bitboard::lsb(pos.pieceBB[K]) : Bitboard::lsb(pos.pieceBB[k]);
+        bool in_check = MoveGen::is_square_attacked(pos, king_sq, pos.side ^ 1);
         
         // Check transposition table
         Move hash_move = 0;
-        int tt_score = TT::read_hash_entry(Bitboard::hash_key, alpha, beta, depth, ply, hash_move);
+        int tt_score = TT::read_hash_entry(pos.hash_key, alpha, beta, depth, ply, hash_move);
         if (tt_score != -32000) {
             return tt_score;
         }
 
         // Syzygy Tablebase Probe
-        uint64_t white_pieces = Bitboard::pieceBB[P] | Bitboard::pieceBB[N] | Bitboard::pieceBB[B] | Bitboard::pieceBB[R] | Bitboard::pieceBB[Q] | Bitboard::pieceBB[K];
-        uint64_t black_pieces = Bitboard::pieceBB[p] | Bitboard::pieceBB[n] | Bitboard::pieceBB[b] | Bitboard::pieceBB[r] | Bitboard::pieceBB[q] | Bitboard::pieceBB[k];
+        uint64_t white_pieces = pos.pieceBB[P] | pos.pieceBB[N] | pos.pieceBB[B] | pos.pieceBB[R] | pos.pieceBB[Q] | pos.pieceBB[K];
+        uint64_t black_pieces = pos.pieceBB[p] | pos.pieceBB[n] | pos.pieceBB[b] | pos.pieceBB[r] | pos.pieceBB[q] | pos.pieceBB[k];
         int num_pieces = __builtin_popcountll(white_pieces | black_pieces);
 
         if (TB_LARGEST > 0 && num_pieces <= TB_LARGEST && !in_check) {
-            uint64_t kings = Bitboard::pieceBB[K] | Bitboard::pieceBB[k];
-            uint64_t queens = Bitboard::pieceBB[Q] | Bitboard::pieceBB[q];
-            uint64_t rooks = Bitboard::pieceBB[R] | Bitboard::pieceBB[r];
-            uint64_t bishops = Bitboard::pieceBB[B] | Bitboard::pieceBB[b];
-            uint64_t knights = Bitboard::pieceBB[N] | Bitboard::pieceBB[n];
-            uint64_t pawns = Bitboard::pieceBB[P] | Bitboard::pieceBB[p];
-            unsigned ep = Bitboard::enpassant != no_sq ? Bitboard::enpassant : 0;
+            uint64_t kings = pos.pieceBB[K] | pos.pieceBB[k];
+            uint64_t queens = pos.pieceBB[Q] | pos.pieceBB[q];
+            uint64_t rooks = pos.pieceBB[R] | pos.pieceBB[r];
+            uint64_t bishops = pos.pieceBB[B] | pos.pieceBB[b];
+            uint64_t knights = pos.pieceBB[N] | pos.pieceBB[n];
+            uint64_t pawns = pos.pieceBB[P] | pos.pieceBB[p];
+            unsigned ep = pos.enpassant != no_sq ? pos.enpassant : 0;
             
-            unsigned wdl = tb_probe_wdl(white_pieces, black_pieces, kings, queens, rooks, bishops, knights, pawns, 0, 0, ep, Bitboard::side == 0);
+            unsigned wdl = tb_probe_wdl(white_pieces, black_pieces, kings, queens, rooks, bishops, knights, pawns, 0, 0, ep, pos.side == 0);
             
             if (wdl != TB_RESULT_FAILED) {
                 int tb_score = 0;
@@ -251,15 +290,15 @@ namespace Search {
         if (in_check && ply < max_depth + 10) depth++;
 
         if (depth <= 0) {
-            return quiescence(alpha, beta, ply);
+            return quiescence(pos, alpha, beta, ply);
         }
         nodes++;
 
         int static_eval = 0;
         if (Evaluation::use_nnue && ply < Evaluation::MAX_PLY) {
-            static_eval = Evaluation::evaluate_incremental(ply);
+            static_eval = Evaluation::evaluate_incremental(pos, ply);
         } else {
-            static_eval = Evaluation::evaluate();
+            static_eval = Evaluation::evaluate(pos);
         }
 
         bool is_pv = (beta - alpha) > 1;
@@ -268,7 +307,7 @@ namespace Search {
         if (!is_pv && !in_check && depth <= 3) {
             int razor_margin = 250 * depth;
             if (static_eval + razor_margin <= alpha) {
-                int score = quiescence(alpha - razor_margin, beta, ply);
+                int score = quiescence(pos, alpha - razor_margin, beta, ply);
                 if (score <= alpha) return score;
             }
         }
@@ -283,20 +322,20 @@ namespace Search {
 
         // Null Move Pruning
         if (do_null && !in_check && !is_pv && depth >= 3 && ply > 0 && static_eval >= beta) {
-            bool has_pieces = (Bitboard::side == WHITE) ? 
-                (Bitboard::pieceBB[N] | Bitboard::pieceBB[B] | Bitboard::pieceBB[R] | Bitboard::pieceBB[Q]) :
-                (Bitboard::pieceBB[n] | Bitboard::pieceBB[b] | Bitboard::pieceBB[r] | Bitboard::pieceBB[q]);
+            bool has_pieces = (pos.side == WHITE) ? 
+                (pos.pieceBB[N] | pos.pieceBB[B] | pos.pieceBB[R] | pos.pieceBB[Q]) :
+                (pos.pieceBB[n] | pos.pieceBB[b] | pos.pieceBB[r] | pos.pieceBB[q]);
                 
             if (has_pieces) {
-                int old_enpassant = Bitboard::enpassant;
-                U64 old_hash = Bitboard::hash_key;
+                int old_enpassant = pos.enpassant;
+                U64 old_hash = pos.hash_key;
                 
-                Bitboard::side ^= 1;
-                Bitboard::hash_key ^= Zobrist::side_key;
-                if (Bitboard::enpassant != no_sq) {
-                    Bitboard::hash_key ^= Zobrist::enpassant_keys[Bitboard::enpassant];
+                pos.side ^= 1;
+                pos.hash_key ^= Zobrist::side_key;
+                if (pos.enpassant != no_sq) {
+                    pos.hash_key ^= Zobrist::enpassant_keys[pos.enpassant];
                 }
-                Bitboard::enpassant = no_sq;
+                pos.enpassant = no_sq;
                 
                 if (Evaluation::use_nnue && ply < Evaluation::MAX_PLY - 1) {
                     Evaluation::nnue_stack[ply + 1].accumulator.computedAccumulation = 0;
@@ -304,11 +343,11 @@ namespace Search {
                 }
                 
                 int R = 4 + depth / 4;
-                int score = -alpha_beta(depth - 1 - R, -beta, -beta + 1, ply + 1, false, 0);
+                int score = -alpha_beta(pos, depth - 1 - R, -beta, -beta + 1, ply + 1, false, 0);
                 
-                Bitboard::side ^= 1;
-                Bitboard::enpassant = old_enpassant;
-                Bitboard::hash_key = old_hash;
+                pos.side ^= 1;
+                pos.enpassant = old_enpassant;
+                pos.hash_key = old_hash;
                 
                 if (stopped) return 0;
                 
@@ -319,11 +358,11 @@ namespace Search {
         if (is_pv && hash_move == 0 && depth >= 4) {
             // Do a shallow search to find a hash move
             int d = depth - 2;
-            alpha_beta(d, alpha, beta, ply, do_null, prev_move);
-            TT::read_hash_entry(Bitboard::hash_key, alpha, beta, depth, ply, hash_move);
+            alpha_beta(pos, d, alpha, beta, ply, do_null, prev_move);
+            TT::read_hash_entry(pos.hash_key, alpha, beta, depth, ply, hash_move);
         }
 
-        MovePicker move_picker(hash_move, ply, prev_move, false);
+        MovePicker move_picker(pos, hash_move, ply, prev_move, false);
 
         int legal_moves = 0;
         int old_alpha = alpha;
@@ -351,7 +390,7 @@ namespace Search {
             if (Evaluation::use_nnue && ply < Evaluation::MAX_PLY - 1) {
                 Evaluation::nnue_stack[ply + 1].accumulator.computedAccumulation = 0;
             }
-            if (!Board::make_move(move, 0, &undo, (ply < Evaluation::MAX_PLY - 1) ? &Evaluation::nnue_stack[ply + 1].dirtyPiece : nullptr)) {
+            if (!Board::make_move(pos, move, 0, &undo, (ply < Evaluation::MAX_PLY - 1) ? &Evaluation::nnue_stack[ply + 1].dirtyPiece : nullptr)) {
                 continue;
             }
             legal_moves++;
@@ -360,7 +399,7 @@ namespace Search {
             
             // PVS / LMR
             if (legal_moves == 1) {
-                score = -alpha_beta(depth - 1, -beta, -alpha, ply + 1, true, move);
+                score = -alpha_beta(pos, depth - 1, -beta, -alpha, ply + 1, true, move);
             } else {
                 int R = 0;
                 if (depth >= 3 && legal_moves >= 4 && !in_check && is_quiet) {
@@ -370,7 +409,7 @@ namespace Search {
                     
                     int src = GET_MOVE_SOURCE(move);
                     int tgt = GET_MOVE_TARGET(move);
-                    int history_score = history_table[Bitboard::side][src][tgt];
+                    int history_score = history_table[pos.side][src][tgt];
                     
                     // History-based LMR adjustment
                     if (history_score > 4000) R -= 2;
@@ -380,25 +419,25 @@ namespace Search {
                     if (R > depth - 1) R = depth - 1;
                 }
                 
-                score = -alpha_beta(depth - 1 - R, -alpha - 1, -alpha, ply + 1, true, move);
+                score = -alpha_beta(pos, depth - 1 - R, -alpha - 1, -alpha, ply + 1, true, move);
                 
                 if (score > alpha && R > 0) {
-                    score = -alpha_beta(depth - 1, -alpha - 1, -alpha, ply + 1, true, move);
+                    score = -alpha_beta(pos, depth - 1, -alpha - 1, -alpha, ply + 1, true, move);
                 }
                 if (score > alpha && score < beta) {
-                    score = -alpha_beta(depth - 1, -beta, -alpha, ply + 1, true, move);
+                    score = -alpha_beta(pos, depth - 1, -beta, -alpha, ply + 1, true, move);
                 }
             }
             
-            Board::unmake_move(move, undo);
+            Board::unmake_move(pos, move, undo);
 
             if (stopped) return 0;
 
             if (score >= beta) {
-                TT::write_hash_entry(Bitboard::hash_key, beta, depth, ply, hash_flag_beta, move);
+                TT::write_hash_entry(pos.hash_key, beta, depth, ply, hash_flag_beta, move);
                 if (is_quiet) {
                     if (ply < 100) {
-                        killer_moves[1][ply] = killer_moves[0][ply];
+                        killer_moves[1][ply].store(killer_moves[0][ply].load(std::memory_order_relaxed), std::memory_order_relaxed);
                         killer_moves[0][ply] = move;
                     }
                     if (prev_move != 0) {
@@ -407,13 +446,13 @@ namespace Search {
                     int src = GET_MOVE_SOURCE(move);
                     int tgt = GET_MOVE_TARGET(move);
                     int bonus = depth * depth;
-                    history_table[Bitboard::side][src][tgt] += bonus;
-                    if (history_table[Bitboard::side][src][tgt] > 10000) {
+                    history_table[pos.side][src][tgt] += bonus;
+                    if (history_table[pos.side][src][tgt] > 10000) {
                         // Normalize history table
                         for (int s = 0; s < 64; s++) {
                             for (int t = 0; t < 64; t++) {
-                                history_table[0][s][t] /= 2;
-                                history_table[1][s][t] /= 2;
+                                history_table[0][s][t].store(history_table[0][s][t].load(std::memory_order_relaxed) / 2, std::memory_order_relaxed);
+                                history_table[1][s][t].store(history_table[1][s][t].load(std::memory_order_relaxed) / 2, std::memory_order_relaxed);
                             }
                         }
                     }
@@ -432,7 +471,7 @@ namespace Search {
             return 0; // Stalemate
         }
 
-        TT::write_hash_entry(Bitboard::hash_key, alpha, depth, ply, hash_flag, best_move);
+        TT::write_hash_entry(pos.hash_key, alpha, depth, ply, hash_flag, best_move);
         return alpha;
     }
 
@@ -454,45 +493,44 @@ namespace Search {
             search_cv.wait(lock, []{ return search_running || exit_threads; });
             if (exit_threads) break;
             
-            for(int i=0; i<12; i++) Bitboard::pieceBB[i] = root_pBB[i];
-            for(int i=0; i<3; i++) Bitboard::occupancies[i] = root_occ[i];
-            Bitboard::side = root_s;
-            Bitboard::enpassant = root_e;
-            Bitboard::castle = root_c;
-            Bitboard::hash_key = Zobrist::generate_hash_key();
+            BoardState pos;
+            for(int i=0; i<12; i++) pos.pieceBB[i] = root_pBB[i];
+            for(int i=0; i<3; i++) pos.occupancies[i] = root_occ[i];
+            pos.side = root_s;
+            pos.enpassant = root_e;
+            pos.castle = root_c;
+            pos.hash_key = Zobrist::generate_hash_key(pos);
             lock.unlock();
-
-            clear_heuristics();
             
             Evaluation::allocate_nnue_stack();
             Evaluation::nnue_stack[0].accumulator.computedAccumulation = 0;
             if (Evaluation::use_nnue) {
-                Evaluation::evaluate_incremental(0);
+                Evaluation::evaluate_incremental(pos, 0);
             }
             
             // Helper does its own iterative deepening until stopped or max_depth
             for (int current_depth = 1 + (thread_id % 4); current_depth <= root_max_depth; current_depth++) {
                 if (stopped || !search_running) break;
                 
-                MovePicker move_picker(0, 0, 0, false);
+                MovePicker move_picker(pos, 0, 0, 0, false);
                 
                 int first_move = true;
                 while (Move move = move_picker.next_move()) {
                     Board::UndoInfo undo;
                     Evaluation::nnue_stack[1].accumulator.computedAccumulation = 0;
-                    if (!Board::make_move(move, 0, &undo, &Evaluation::nnue_stack[1].dirtyPiece)) {
+                    if (!Board::make_move(pos, move, 0, &undo, &Evaluation::nnue_stack[1].dirtyPiece)) {
                         continue;
                     }
                     
                     int score;
                     if (first_move) {
-                        score = -alpha_beta(current_depth - 1, -32000, 32000, 1, true, move);
+                        score = -alpha_beta(pos, current_depth - 1, -32000, 32000, 1, true, move);
                         first_move = false;
                     } else {
-                        score = -alpha_beta(current_depth - 1, -32000, 32000, 1, true, move);
+                        score = -alpha_beta(pos, current_depth - 1, -32000, 32000, 1, true, move);
                     }
                     
-                    Board::unmake_move(move, undo);
+                    Board::unmake_move(pos, move, undo);
                     if (stopped || !search_running) break;
                 }
             }
@@ -528,18 +566,18 @@ namespace Search {
         thread_pool.clear();
     }
 
-    std::string extract_pv(int max_depth_val) {
+    std::string extract_pv(BoardState& pos, int max_depth_val) {
         std::string pv_str = "";
-        U64 current_hash = Bitboard::hash_key;
+        U64 current_hash = pos.hash_key;
         int depth = 0;
         
         U64 pBB[12];
         U64 occ[3];
-        for(int i=0; i<12; i++) pBB[i] = Bitboard::pieceBB[i];
-        for(int i=0; i<3; i++) occ[i] = Bitboard::occupancies[i];
-        int s = Bitboard::side;
-        int e = Bitboard::enpassant;
-        int c = Bitboard::castle;
+        for(int i=0; i<12; i++) pBB[i] = pos.pieceBB[i];
+        for(int i=0; i<3; i++) occ[i] = pos.occupancies[i];
+        int s = pos.side;
+        int e = pos.enpassant;
+        int c = pos.castle;
         
         std::vector<Board::UndoInfo> undos;
         std::vector<Move> moves;
@@ -552,7 +590,7 @@ namespace Search {
             if (best_move == 0) break;
             
             MoveList move_list;
-            MoveGen::generate_moves(move_list, false);
+            MoveGen::generate_moves(pos, move_list, false);
             bool is_pseudo_legal = false;
             for (int i = 0; i < move_list.count; i++) {
                 if (move_list.moves[i] == best_move) {
@@ -581,11 +619,11 @@ namespace Search {
             }
 
             Board::UndoInfo undo;
-            Board::make_move(best_move, 0, &undo, nullptr);
+            Board::make_move(pos, best_move, 0, &undo, nullptr);
             undos.push_back(undo);
             moves.push_back(best_move);
             
-            current_hash = Bitboard::hash_key;
+            current_hash = pos.hash_key;
             if (std::find(hashes_seen.begin(), hashes_seen.end(), current_hash) != hashes_seen.end()) break;
             hashes_seen.push_back(current_hash);
             
@@ -593,15 +631,15 @@ namespace Search {
         }
 
         for (int i = (int)moves.size() - 1; i >= 0; i--) {
-            Board::unmake_move(moves[i], undos[i]);
+            Board::unmake_move(pos, moves[i], undos[i]);
         }
 
-        for(int i=0; i<12; i++) Bitboard::pieceBB[i] = pBB[i];
-        for(int i=0; i<3; i++) Bitboard::occupancies[i] = occ[i];
-        Bitboard::side = s;
-        Bitboard::enpassant = e;
-        Bitboard::castle = c;
-        Bitboard::hash_key = Zobrist::generate_hash_key();
+        for(int i=0; i<12; i++) pos.pieceBB[i] = pBB[i];
+        for(int i=0; i<3; i++) pos.occupancies[i] = occ[i];
+        pos.side = s;
+        pos.enpassant = e;
+        pos.castle = c;
+        pos.hash_key = Zobrist::generate_hash_key(pos);
         
         return pv_str;
     }
@@ -611,7 +649,7 @@ namespace Search {
         int score;
     };
 
-    void search_position(int depth) {
+    void search_position(BoardState& pos, int depth) {
         // We do NOT parse current_fen here, because main.cpp already sets up the board and applies moves!
         clear_heuristics();
         
@@ -643,17 +681,17 @@ namespace Search {
         Evaluation::allocate_nnue_stack();
         Evaluation::nnue_stack[0].accumulator.computedAccumulation = 0;
         if (Evaluation::use_nnue) {
-            Evaluation::evaluate_incremental(0); // Initialize root accumulator properly!
+            Evaluation::evaluate_incremental(pos, 0); // Initialize root accumulator properly!
         }
 
-        MovePicker move_picker(0, 0, 0, false);
+        MovePicker move_picker(pos, 0, 0, 0, false);
 
         std::vector<RootMove> legal_moves;
         while (Move move = move_picker.next_move()) {
             Board::UndoInfo undo;
-            if (Board::make_move(move, 0, &undo, nullptr)) {
+            if (Board::make_move(pos, move, 0, &undo, nullptr)) {
                 legal_moves.push_back({move, 0});
-                Board::unmake_move(move, undo);
+                Board::unmake_move(pos, move, undo);
             }
         }
 
@@ -664,24 +702,24 @@ namespace Search {
 
         std::vector<Move> current_book_moves;
         if (UseOwnBook && !BookFile.empty()) {
-            auto b_moves = Polyglot::get_all_book_moves(BookFile);
+            auto b_moves = Polyglot::get_all_book_moves(pos, BookFile);
             for (auto& bm : b_moves) current_book_moves.push_back(bm.first);
         }
 
-        uint64_t white_pieces = Bitboard::pieceBB[P] | Bitboard::pieceBB[N] | Bitboard::pieceBB[B] | Bitboard::pieceBB[R] | Bitboard::pieceBB[Q] | Bitboard::pieceBB[K];
-        uint64_t black_pieces = Bitboard::pieceBB[p] | Bitboard::pieceBB[n] | Bitboard::pieceBB[b] | Bitboard::pieceBB[r] | Bitboard::pieceBB[q] | Bitboard::pieceBB[k];
+        uint64_t white_pieces = pos.pieceBB[P] | pos.pieceBB[N] | pos.pieceBB[B] | pos.pieceBB[R] | pos.pieceBB[Q] | pos.pieceBB[K];
+        uint64_t black_pieces = pos.pieceBB[p] | pos.pieceBB[n] | pos.pieceBB[b] | pos.pieceBB[r] | pos.pieceBB[q] | pos.pieceBB[k];
         int num_pieces = __builtin_popcountll(white_pieces | black_pieces);
 
         if (TB_LARGEST > 0 && num_pieces <= TB_LARGEST) {
-            uint64_t kings = Bitboard::pieceBB[K] | Bitboard::pieceBB[k];
-            uint64_t queens = Bitboard::pieceBB[Q] | Bitboard::pieceBB[q];
-            uint64_t rooks = Bitboard::pieceBB[R] | Bitboard::pieceBB[r];
-            uint64_t bishops = Bitboard::pieceBB[B] | Bitboard::pieceBB[b];
-            uint64_t knights = Bitboard::pieceBB[N] | Bitboard::pieceBB[n];
-            uint64_t pawns = Bitboard::pieceBB[P] | Bitboard::pieceBB[p];
-            unsigned ep = Bitboard::enpassant != no_sq ? Bitboard::enpassant : 0;
+            uint64_t kings = pos.pieceBB[K] | pos.pieceBB[k];
+            uint64_t queens = pos.pieceBB[Q] | pos.pieceBB[q];
+            uint64_t rooks = pos.pieceBB[R] | pos.pieceBB[r];
+            uint64_t bishops = pos.pieceBB[B] | pos.pieceBB[b];
+            uint64_t knights = pos.pieceBB[N] | pos.pieceBB[n];
+            uint64_t pawns = pos.pieceBB[P] | pos.pieceBB[p];
+            unsigned ep = pos.enpassant != no_sq ? pos.enpassant : 0;
             
-            unsigned root_res = tb_probe_root(white_pieces, black_pieces, kings, queens, rooks, bishops, knights, pawns, 0, 0, ep, Bitboard::side == WHITE, NULL);
+            unsigned root_res = tb_probe_root(white_pieces, black_pieces, kings, queens, rooks, bishops, knights, pawns, 0, 0, ep, pos.side == WHITE, NULL);
             if (root_res != TB_RESULT_FAILED) {
                 unsigned from = TB_GET_FROM(root_res);
                 unsigned to = TB_GET_TO(root_res);
@@ -704,11 +742,11 @@ namespace Search {
             }
         }
 
-        for(int i=0; i<12; i++) root_pBB[i] = Bitboard::pieceBB[i];
-        for(int i=0; i<3; i++) root_occ[i] = Bitboard::occupancies[i];
-        root_s = Bitboard::side;
-        root_e = Bitboard::enpassant;
-        root_c = Bitboard::castle;
+        for(int i=0; i<12; i++) root_pBB[i] = pos.pieceBB[i];
+        for(int i=0; i<3; i++) root_occ[i] = pos.occupancies[i];
+        root_s = pos.side;
+        root_e = pos.enpassant;
+        root_c = pos.castle;
         
         // Wake up threads
         {
@@ -770,9 +808,9 @@ namespace Search {
                 if (is_book_slot && book_move != 0) {
                     Board::UndoInfo undo;
                     Evaluation::nnue_stack[1].accumulator.computedAccumulation = 0;
-                    if (Board::make_move(book_move, 0, &undo, &Evaluation::nnue_stack[1].dirtyPiece)) {
-                        best_score = -alpha_beta(current_depth - 1, -32000, 32000, 1, false, book_move);
-                        Board::unmake_move(book_move, undo);
+                    if (Board::make_move(pos, book_move, 0, &undo, &Evaluation::nnue_stack[1].dirtyPiece)) {
+                        best_score = -alpha_beta(pos, current_depth - 1, -32000, 32000, 1, false, book_move);
+                        Board::unmake_move(pos, book_move, undo);
                     } else {
                         best_score = 0;
                     }
@@ -797,11 +835,11 @@ namespace Search {
                             
                             Board::UndoInfo undo;
                             Evaluation::nnue_stack[1].accumulator.computedAccumulation = 0;
-                            if (!Board::make_move(move, 0, &undo, &Evaluation::nnue_stack[1].dirtyPiece)) {
+                            if (!Board::make_move(pos, move, 0, &undo, &Evaluation::nnue_stack[1].dirtyPiece)) {
                                 continue;
                             }
-                            int score = -alpha_beta(current_depth - 1, -beta, -current_alpha, 1, false, move);
-                            Board::unmake_move(move, undo);
+                            int score = -alpha_beta(pos, current_depth - 1, -beta, -current_alpha, 1, false, move);
+                            Board::unmake_move(pos, move, undo);
                             
                             if (stopped) break;
                             
@@ -836,9 +874,9 @@ namespace Search {
                     excluded_moves.push_back(best_move_this_iteration);
                     global_best_moves[pv_idx] = best_move_this_iteration;
                     
-                    TT::write_hash_entry(Bitboard::hash_key, best_score, current_depth, 0, hash_flag_exact, best_move_this_iteration);
+                    TT::write_hash_entry(pos.hash_key, best_score, current_depth, 0, hash_flag_exact, best_move_this_iteration);
                     
-                    std::string pv_line = extract_pv(current_depth);
+                    std::string pv_line = extract_pv(pos, current_depth);
                     
                     std::cout << "info depth " << current_depth 
                               << " multipv " << (pv_idx + 1) << " ";

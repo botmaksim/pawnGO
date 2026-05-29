@@ -12,10 +12,10 @@ namespace Board {
         U64 hash_key;
     };
 
-    int make_move(Move move, int move_flag, UndoInfo* undo = nullptr, DirtyPiece* dp = nullptr);
-    void unmake_move(Move move, const UndoInfo& undo, DirtyPiece* dp = nullptr);
+    int make_move(BoardState& pos, Move move, int move_flag, UndoInfo* undo = nullptr, DirtyPiece* dp = nullptr);
+    void unmake_move(BoardState& pos, Move move, const UndoInfo& undo, DirtyPiece* dp = nullptr);
     
     extern long long nodes;
-    void perft_driver(int depth);
-    void perft_test(int depth);
+    void perft_driver(BoardState& pos, int depth);
+    void perft_test(BoardState& pos, int depth);
 }

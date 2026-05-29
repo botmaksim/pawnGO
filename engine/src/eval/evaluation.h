@@ -7,7 +7,7 @@
 
 namespace Evaluation {
     void init_nnue(const char* file_path);
-    int evaluate();
+    int evaluate(const BoardState& pos);
 
     extern const int nnue_piece_map[12];
     extern bool use_nnue;
@@ -15,7 +15,7 @@ namespace Evaluation {
     const int MAX_PLY = 200;
     extern thread_local NNUEdata* nnue_stack;
     void allocate_nnue_stack();
-    int evaluate_incremental(int ply);
+    int evaluate_incremental(const BoardState& pos, int ply);
 
     extern const int pawn_score[64];
     extern const int knight_score[64];
