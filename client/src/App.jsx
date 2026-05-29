@@ -102,7 +102,49 @@ function App() {
     // Simulate WebSocket API for existing code
     wsRef.current = {
       readyState: 1, // OPEN
-      send: (cmd) => worker.postMessage(cmd),
+      isTablebasePending: null,
+      send: (cmd) => {
+          if (cmd.startsWith('position fen ')) {
+              const fen = cmd.substring('position fen '.length);
+              const pieceCount = fen.split(' ')[0].replace(/[^a-zA-Z]/g, '').length;
+              if (pieceCount <= 5) {
+                  wsRef.current.isTablebasePending = fen;
+                  return; // Hold the command
+              }
+              wsRef.current.isTablebasePending = null;
+          }
+          if (cmd.startsWith('go ') && wsRef.current.isTablebasePending) {
+              const fen = wsRef.current.isTablebasePending;
+              fetch(`/api/tablebase?fen=${encodeURIComponent(fen)}`)
+                  .then(res => res.json())
+                  .then(data => {
+                      if (data.bestmove) {
+                          // Inject tablebase move
+                          if (wsRef.current.onmessage) {
+                              wsRef.current.onmessage({ data: `info depth 64 score cp 19999 pv ${data.bestmove}` });
+                              wsRef.current.onmessage({ data: `bestmove ${data.bestmove}` });
+                          }
+                      } else {
+                          // Fallback to Wasm
+                          wsRef.current.isTablebasePending = null;
+                          worker.postMessage(`position fen ${fen}`);
+                          worker.postMessage(cmd);
+                      }
+                  })
+                  .catch(err => {
+                      console.error('Tablebase error', err);
+                      // Fallback to Wasm
+                      wsRef.current.isTablebasePending = null;
+                      worker.postMessage(`position fen ${fen}`);
+                      worker.postMessage(cmd);
+                  });
+              return;
+          }
+          if (cmd === 'stop' && wsRef.current.isTablebasePending) {
+              return; // Nothing to stop on the server
+          }
+          worker.postMessage(cmd);
+      },
       close: () => worker.terminate()
     };
 

@@ -8,7 +8,15 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -flto")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -march=native -flto")
 
-include_directories(src src/core src/search src/eval src/utils src/eval/nnue/src src/eval/syzygy)
+include_directories(
+    ${CMAKE_SOURCE_DIR}/src 
+    ${CMAKE_SOURCE_DIR}/src/core 
+    ${CMAKE_SOURCE_DIR}/src/search 
+    ${CMAKE_SOURCE_DIR}/src/eval 
+    ${CMAKE_SOURCE_DIR}/src/utils 
+    ${CMAKE_SOURCE_DIR}/src/eval/nnue/src 
+    ${CMAKE_SOURCE_DIR}/src/eval/syzygy
+)
 
 # Optimization flags for release build
 if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "")

@@ -18,3 +18,13 @@ services:
     restart: always
     depends_on:
       - engine_builder
+
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./engine/3-4-5:/app/syzygy
+    restart: always
