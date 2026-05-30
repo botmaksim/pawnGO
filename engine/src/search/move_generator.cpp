@@ -53,6 +53,7 @@ namespace MoveGen {
                 while (attacks) {
                     target = Bitboard::lsb(attacks);
                     Bitboard::pop_bit(attacks, target);
+                    if (Bitboard::get_bit(pos.pieceBB[k], target)) continue; // Don't capture the king
                     if (source >= a7 && source <= h7) {
                         move_list.add(ENCODE_MOVE(source, target, P, Q, 1, 0, 0, 0));
                         move_list.add(ENCODE_MOVE(source, target, P, R, 1, 0, 0, 0));
@@ -88,6 +89,7 @@ namespace MoveGen {
                 while (attacks) {
                     target = Bitboard::lsb(attacks);
                     Bitboard::pop_bit(attacks, target);
+                    if (Bitboard::get_bit(pos.pieceBB[K], target)) continue; // Don't capture the king
                     if (source >= a2 && source <= h2) {
                         move_list.add(ENCODE_MOVE(source, target, p, q, 1, 0, 0, 0));
                         move_list.add(ENCODE_MOVE(source, target, p, r, 1, 0, 0, 0));
@@ -166,6 +168,7 @@ namespace MoveGen {
 
                     int is_capture = Bitboard::get_bit(pos.occupancies[opp_side], target) ? 1 : 0;
                     if (only_captures && !is_capture) continue;
+                    if (is_capture && Bitboard::get_bit(pos.pieceBB[opp_side == WHITE ? K : k], target)) continue; // Don't capture the king
                     move_list.add(ENCODE_MOVE(source, target, piece, 0, is_capture, 0, 0, 0));
                 }
             }

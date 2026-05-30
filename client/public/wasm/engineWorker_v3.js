@@ -2,6 +2,9 @@ let engineInstance = null;
 let cmdQueue = [];
 
 var Module = {
+    locateFile: function(path, prefix) {
+        return prefix + path + '?v=5';
+    },
     print: function(text) {
         if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
         postMessage(text);
@@ -24,11 +27,11 @@ var Module = {
     }
 };
 
-importScripts('wasm/pawngo_wasm.js');
+importScripts('pawngo_wasm.js?v=5');
 
-onmessage = function(e) {
-    const cmd = e.data;
-    if (cmd) {
+self.addEventListener('message', function(e) {
+    if (typeof e.data === 'string') {
+        const cmd = e.data;
         if (engineInstance) {
             engineInstance.ccall('wasm_send_command', null, ['string'], [cmd]);
         } else {
@@ -36,4 +39,4 @@ onmessage = function(e) {
             cmdQueue.push(cmd);
         }
     }
-};
+});

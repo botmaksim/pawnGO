@@ -182,6 +182,10 @@ namespace Search {
         if (stopped) return 0;
         nodes++;
 
+        if (ply >= Evaluation::MAX_PLY - 1) {
+            return Evaluation::evaluate_incremental(pos, ply);
+        }
+
         int king_sq = pos.side == WHITE ? Bitboard::lsb(pos.pieceBB[K]) : Bitboard::lsb(pos.pieceBB[k]);
         bool in_check = MoveGen::is_square_attacked(pos, king_sq, pos.side ^ 1);
 
@@ -248,6 +252,10 @@ namespace Search {
     int alpha_beta(BoardState& pos, int depth, int alpha, int beta, int ply, bool do_null, Move prev_move) {
         if (stopped) return 0;
         
+        if (ply >= Evaluation::MAX_PLY - 1) {
+            return Evaluation::evaluate_incremental(pos, ply);
+        }
+
         int king_sq = pos.side == WHITE ? Bitboard::lsb(pos.pieceBB[K]) : Bitboard::lsb(pos.pieceBB[k]);
         bool in_check = MoveGen::is_square_attacked(pos, king_sq, pos.side ^ 1);
         

@@ -4,7 +4,7 @@ WORKDIR /app
 COPY . .
 
 RUN cp CMakeLists.wasm.txt CMakeLists.txt && \
-    mkdir build_wasm && cd build_wasm && \
+    mkdir -p build_wasm && cd build_wasm && \
     emcmake cmake -G "Unix Makefiles" .. && \
     emmake make -j4
 

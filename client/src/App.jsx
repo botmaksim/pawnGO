@@ -47,6 +47,18 @@ function App() {
   // New UI features
   const [showArrows, setShowArrows] = useState(true);
   const [playMode, setPlayMode] = useState('Analysis');
+  // Derived state
+  const currentNode = nodes[currentNodeId];
+  const currentFen = isSetupMode ? setupFenInput : currentNode.fen;
+  const game = new Chess();
+  // Safe load
+  try {
+    game.load(currentFen);
+  } catch (e) {
+    // ignore invalid fen in setup
+  }
+  const turnColor = game.turn() === 'w' ? 'White' : 'Black';
+
   const playModeRef = useRef(playMode);
   useEffect(() => { 
     playModeRef.current = playMode; 
@@ -68,17 +80,7 @@ function App() {
   }, [playMode, game, isSetupMode, analysisDepth]);
   const [pendingEngineMove, setPendingEngineMove] = useState(null);
 
-  // Derived state
-  const currentNode = nodes[currentNodeId];
-  const currentFen = isSetupMode ? setupFenInput : currentNode.fen;
-  const game = new Chess();
-  // Safe load
-  try {
-    game.load(currentFen);
-  } catch (e) {
-    // ignore invalid fen in setup
-  }
-  const turnColor = game.turn() === 'w' ? 'White' : 'Black';
+
 
   const currentFenRef = useRef(currentFen);
   useEffect(() => {
@@ -97,7 +99,7 @@ function App() {
 
   useEffect(() => {
     // Web Worker for WebAssembly Engine
-    const worker = new Worker('engineWorker.js');
+    const worker = new Worker('wasm/engineWorker_v3.js?v=6');
     
     // Simulate WebSocket API for existing code
     wsRef.current = {
@@ -247,10 +249,7 @@ function App() {
              if (!updatePendingRef.current) {
                  updatePendingRef.current = true;
                  requestAnimationFrame(() => {
-                     // Only update pv lines if in analysis mode to prevent hints during play
-                     if (playModeRef.current === 'Analysis') {
-                         setPvLines(latestPvLinesRef.current);
-                     }
+                     setPvLines(latestPvLinesRef.current);
                      updatePendingRef.current = false;
                  });
              }
@@ -721,14 +720,7 @@ function App() {
     }
   }
 
-  // Text description for annotation
-  const getAnnotationDescription = (anno) => {
-      if (anno === '!!') return 'Brilliant Move!';
-      if (anno === '??') return 'Blunder!';
-      if (anno === '!') return 'Good Move';
-      if (anno === '?!') return 'Inaccuracy';
-      return '';
-  };
+
 
   // Calculate current depth
   const currentDepth = Object.values(pvLines).length > 0 
@@ -795,7 +787,13 @@ function App() {
         
         <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'stretch' }}>
           <EvalBar 
-            score={pvLines['1'] ? pvLines['1'].score : "0.00"} 
+            score={
+              pvLines['1'] 
+                ? pvLines['1'].score 
+                : (currentNode && currentNode.pvLines && currentNode.pvLines['1'] 
+                    ? currentNode.pvLines['1'].score 
+                    : "0.00")
+            } 
             boardOrientation={boardOrientation} 
           />
           <div style={{ position: 'relative', flexGrow: 1 }}>
