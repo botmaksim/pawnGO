@@ -1,5 +1,5 @@
 # Stage 1: Build the native C++ Engine
-FROM ubuntu:24.04 as builder
+FROM node:22-slim as builder
 RUN apt-get update && apt-get install -y cmake g++ make curl git
 
 WORKDIR /app
