@@ -21,7 +21,11 @@
 std::ofstream engine_logger("engine.log", std::ios_base::app);
 
 bool UseOwnBook = true;
+#ifdef __EMSCRIPTEN__
+std::string BookFile = "perfect/Perfect2023.bin";
+#else
 std::string BookFile = "../perfect/Perfect2023.bin";
+#endif
 int game_ply = 0;
 BoardState pos;
 
@@ -59,7 +63,7 @@ void uciLoop() {
             std::cout << "option name Threads type spin default 4 min 1 max 256" << std::endl;
             std::cout << "option name MultiPV type spin default 1 min 1 max 500" << std::endl;
             std::cout << "option name OwnBook type check default true" << std::endl;
-            std::cout << "option name BookFile type string default ../perfect/Perfect2023.bin" << std::endl;
+            std::cout << "option name BookFile type string default " << BookFile << std::endl;
             std::cout << "option name SyzygyPath type string default <empty>" << std::endl;
             std::cout << "uciok" << std::endl;
         } else if (line == "isready") {
@@ -311,7 +315,7 @@ void execute_uci_command(const std::string& line, std::thread& search_thread) {
         std::cout << "option name Threads type spin default 4 min 1 max 256" << std::endl;
         std::cout << "option name MultiPV type spin default 1 min 1 max 500" << std::endl;
         std::cout << "option name OwnBook type check default true" << std::endl;
-        std::cout << "option name BookFile type string default ../perfect/Perfect2023.bin" << std::endl;
+        std::cout << "option name BookFile type string default " << BookFile << std::endl;
         std::cout << "option name SyzygyPath type string default <empty>" << std::endl;
         std::cout << "uciok" << std::endl;
     } else if (line == "isready") {

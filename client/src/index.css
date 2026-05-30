@@ -146,6 +146,7 @@ button:hover {
   background: rgba(0,0,0,0.3);
   padding: 10px;
   border-radius: 8px;
+  min-height: 120px;
   max-height: 200px;
   overflow-y: auto;
   font-size: 0.9em;
