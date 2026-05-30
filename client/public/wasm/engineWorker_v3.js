@@ -27,7 +27,7 @@ var Module = {
     }
 };
 
-importScripts('pawngo_wasm.js?v=5');
+importScripts('pawngo_wasm.js?v=7');
 
 self.addEventListener('message', function(e) {
     if (typeof e.data === 'string') {

@@ -99,7 +99,7 @@ function App() {
 
   useEffect(() => {
     // Web Worker for WebAssembly Engine
-    const worker = new Worker('wasm/engineWorker_v3.js?v=6');
+    const worker = new Worker('wasm/engineWorker_v3.js?v=7');
     
     // Simulate WebSocket API for existing code
     wsRef.current = {

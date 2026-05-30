@@ -6,6 +6,7 @@
 #include <iostream>
 #include <string>
 #include <sstream>
+#include <stdlib.h>
 
 namespace Evaluation {
     // NNUE Piece Map (from pawnGO to nnue-probe format)
