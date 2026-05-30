@@ -262,13 +262,15 @@ void uciLoop() {
 
             // Launch search in a background thread so UCI remains responsive
             search_thread = std::thread([=]() {
-                for (int i = 0; i < 12; i++) pos.pieceBB[i] = t_pieceBB[i];
-                for (int i = 0; i < 3; i++) pos.occupancies[i] = t_occ[i];
-                pos.side = t_side;
-                pos.enpassant = t_ep;
-                pos.castle = t_cas;
-                pos.hash_key = t_hash;
-                Search::search_position(pos, depth);
+                BoardState thread_pos;
+                for (int i = 0; i < 12; i++) thread_pos.pieceBB[i] = t_pieceBB[i];
+                for (int i = 0; i < 3; i++) thread_pos.occupancies[i] = t_occ[i];
+                thread_pos.side = t_side;
+                thread_pos.enpassant = t_ep;
+                thread_pos.castle = t_cas;
+                thread_pos.hash_key = t_hash;
+                Search::thread_search_id = current_search_id;
+                Search::search_position(thread_pos, depth, current_search_id);
             });
             
             if (time_for_move != -1 && depth_idx == std::string::npos) {
@@ -296,7 +298,11 @@ void uciLoop() {
 
     if (search_thread.joinable()) {
         Search::stopped = true;
+#ifdef __EMSCRIPTEN__
+        search_thread.detach();
+#else
         search_thread.join();
+#endif
     }
     Search::stop_threads();
 }
@@ -308,10 +314,18 @@ void execute_uci_command(const std::string& line, std::thread& search_thread) {
     if (line == "quit") {
         Search::stopped = true;
         Search::stop_threads();
+#ifdef __EMSCRIPTEN__
+        if (search_thread.joinable()) search_thread.detach();
+#else
         if (search_thread.joinable()) search_thread.join();
+#endif
     } else if (line == "stop") {
         Search::stopped = true;
+#ifdef __EMSCRIPTEN__
+        if (search_thread.joinable()) search_thread.detach();
+#else
         if (search_thread.joinable()) search_thread.join();
+#endif
     } else if (line == "uci") {
         std::cout << "id name pawnGO 1.0" << std::endl;
         std::cout << "id author Maksim" << std::endl;
@@ -514,13 +528,15 @@ void execute_uci_command(const std::string& line, std::thread& search_thread) {
 
         // Launch search in a background thread so UCI remains responsive
         search_thread = std::thread([=]() {
-            for (int i = 0; i < 12; i++) pos.pieceBB[i] = t_pieceBB[i];
-            for (int i = 0; i < 3; i++) pos.occupancies[i] = t_occ[i];
-            pos.side = t_side;
-            pos.enpassant = t_ep;
-            pos.castle = t_cas;
-            pos.hash_key = t_hash;
-            Search::search_position(pos, depth);
+            BoardState thread_pos;
+            for (int i = 0; i < 12; i++) thread_pos.pieceBB[i] = t_pieceBB[i];
+            for (int i = 0; i < 3; i++) thread_pos.occupancies[i] = t_occ[i];
+            thread_pos.side = t_side;
+            thread_pos.enpassant = t_ep;
+            thread_pos.castle = t_cas;
+            thread_pos.hash_key = t_hash;
+            Search::thread_search_id = current_search_id;
+            Search::search_position(thread_pos, depth, current_search_id);
         });
         
         if (time_for_move != -1 && depth_idx == std::string::npos) {

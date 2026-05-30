@@ -14,6 +14,8 @@ namespace Search {
     extern int max_depth;
     extern int multi_pv;
     extern std::atomic<bool> stopped;
+    extern std::atomic<int> search_id;
+    extern thread_local int thread_search_id;
 
     // History and Killer Heuristics (shared for lazy SMP)
     extern std::atomic<int> history_table[2][64][64];
@@ -34,7 +36,7 @@ namespace Search {
     void stop_threads();
     
     // Multithreaded root search
-    void search_position(BoardState& pos, int depth);
+    void search_position(BoardState& pos, int depth, int current_search_id = -1);
 }
 
 #endif // SEARCH_H

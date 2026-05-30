@@ -19,6 +19,12 @@ namespace Search {
     int max_depth = 6;
     int multi_pv = 1;
     std::atomic<bool> stopped(false);
+    std::atomic<int> search_id(0);
+    thread_local int thread_search_id = 0;
+    
+    inline bool is_stopped() {
+        return stopped || (thread_search_id != 0 && thread_search_id != search_id.load(std::memory_order_relaxed));
+    }
     
     std::atomic<long long> nodes(0);
 
@@ -179,7 +185,7 @@ namespace Search {
     };
 
     int quiescence(BoardState& pos, int alpha, int beta, int ply) {
-        if (stopped) return 0;
+        if (is_stopped()) return 0;
         nodes++;
 
         if (ply >= Evaluation::MAX_PLY - 1) {
@@ -250,7 +256,7 @@ namespace Search {
     }
 
     int alpha_beta(BoardState& pos, int depth, int alpha, int beta, int ply, bool do_null, Move prev_move) {
-        if (stopped) return 0;
+        if (is_stopped()) return 0;
         
         if (ply >= Evaluation::MAX_PLY - 1) {
             return Evaluation::evaluate_incremental(pos, ply);
@@ -357,7 +363,7 @@ namespace Search {
                 pos.enpassant = old_enpassant;
                 pos.hash_key = old_hash;
                 
-                if (stopped) return 0;
+                if (is_stopped()) return 0;
                 
                 if (score >= beta) return beta;
             }
@@ -439,7 +445,7 @@ namespace Search {
             
             Board::unmake_move(pos, move, undo);
 
-            if (stopped) return 0;
+            if (is_stopped()) return 0;
 
             if (score >= beta) {
                 TT::write_hash_entry(pos.hash_key, beta, depth, ply, hash_flag_beta, move);
@@ -518,7 +524,7 @@ namespace Search {
             
             // Helper does its own iterative deepening until stopped or max_depth
             for (int current_depth = 1 + (thread_id % 4); current_depth <= root_max_depth; current_depth++) {
-                if (stopped || !search_running) break;
+                if (is_stopped() || !search_running) break;
                 
                 MovePicker move_picker(pos, 0, 0, 0, false);
                 
@@ -539,7 +545,7 @@ namespace Search {
                     }
                     
                     Board::unmake_move(pos, move, undo);
-                    if (stopped || !search_running) break;
+                    if (is_stopped() || !search_running) break;
                 }
             }
             
@@ -849,7 +855,7 @@ namespace Search {
                             int score = -alpha_beta(pos, current_depth - 1, -beta, -current_alpha, 1, false, move);
                             Board::unmake_move(pos, move, undo);
                             
-                            if (stopped) break;
+                            if (is_stopped()) break;
                             
                             if (pv_idx == 0) rm.score = score;
                             
@@ -862,7 +868,7 @@ namespace Search {
                             }
                         }
                         
-                        if (stopped) break;
+                        if (is_stopped()) break;
                         
                         if (best_score <= alpha && alpha != -32000) {
                             alpha = -32000;
@@ -876,7 +882,7 @@ namespace Search {
                     }
                 }
                 
-                if (stopped) break;
+                if (is_stopped()) break;
                 
                 if (best_move_this_iteration != 0) {
                     excluded_moves.push_back(best_move_this_iteration);
@@ -907,7 +913,7 @@ namespace Search {
                               << " pv " << pv_line << std::endl;
                 }
             }
-            if (stopped) break;
+            if (is_stopped()) break;
         }
 
         // Sleep threads

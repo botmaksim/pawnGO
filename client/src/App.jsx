@@ -29,6 +29,7 @@ function App() {
   const [isShaking, setIsShaking] = useState(false);
   
   // Engine States
+  const [engineReady, setEngineReady] = useState(false);
   const [pvLines, setPvLines] = useState({}); // map of multipv index -> line object
   const [multiPvCount, setMultiPvCount] = useState(3);
   const [analysisDepth, setAnalysisDepth] = useState(15);
@@ -66,8 +67,8 @@ function App() {
     // If we just switched to playing as the side whose turn it is, force the engine to think!
     if (playMode !== 'Analysis' && !isSetupMode) {
       const currentTurn = game.turn();
-      if ((playMode === 'Play as White' && currentTurn === 'w') ||
-          (playMode === 'Play as Black' && currentTurn === 'b')) {
+      if ((playMode === 'Play as White' && currentTurn === 'b') ||
+          (playMode === 'Play as Black' && currentTurn === 'w')) {
           if (wsRef.current && wsRef.current.readyState === 1) {
               wsRef.current.send('stop');
               setTimeout(() => {
@@ -154,6 +155,7 @@ function App() {
       const msg = event.data;
       if (msg === 'isready') {
           console.log('Engine is ready (Wasm)');
+          setEngineReady(true);
           // Send initial setup
           wsRef.current.send('uci');
           wsRef.current.send(`setoption name MultiPV value ${multiPvCount}`);
@@ -1034,6 +1036,37 @@ function App() {
             }} />
           </div>
           <p>{analyzeProgress.current} / {analyzeProgress.total} moves analyzed</p>
+          <button 
+            className="modern-button" 
+            style={{ marginTop: '20px' }} 
+            onClick={cancelFullGameAnalysis}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+      {!engineReady && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.9)', display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', zIndex: 10000, color: 'white'
+        }}>
+          <h2>Downloading Engine...</h2>
+          <p style={{ color: '#aaa', marginTop: '10px' }}>Loading WebAssembly components (approx. 3 MB)</p>
+          <div className="spinner" style={{ 
+            marginTop: '20px', width: '40px', height: '40px', 
+            border: '4px solid rgba(255,255,255,0.2)', 
+            borderTop: '4px solid #1baca6', borderRadius: '50%', 
+            animation: 'spin 1s linear infinite' 
+          }} />
+          <style>
+            {`
+              @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+              }
+            `}
+          </style>
         </div>
       )}
     </div>
