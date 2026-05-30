@@ -13,19 +13,25 @@ export function countMaterial(fen) {
     return { white: whiteMat, black: blackMat };
 }
 
-export function parseScoreToCp(scoreStr) {
+export function parseScoreToPawns(scoreStr) {
     if (!scoreStr) return undefined;
-    if (scoreStr === 'TBW') return 19900;
-    if (scoreStr === 'TBL') return -19900;
+    if (scoreStr === 'TBW') return 199.00;
+    if (scoreStr === 'TBL') return -199.00;
     if (scoreStr.startsWith('M')) {
         const moves = parseInt(scoreStr.substring(1), 10);
-        return 10000 - moves; // Mate is very high score
+        return 100.00 - moves; // Mate is very high score
     }
     if (scoreStr.startsWith('-M')) {
         const moves = parseInt(scoreStr.substring(2), 10);
-        return -10000 + moves;
+        return -100.00 + moves; // Negative mate
     }
     return parseFloat(scoreStr);
+}
+
+function getWinProbability(pawns) {
+    if (pawns === undefined) return undefined;
+    const cp = pawns * 100;
+    return 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * Math.max(-4000, Math.min(4000, cp)))) - 1);
 }
 
 // Classify a move from Node A to Node B
@@ -33,14 +39,14 @@ export function classifyMove(nodeA, nodeB, sanMove) {
     if (!nodeA.pvLines || !nodeB.pvLines) return '';
 
     // Convert scores to absolute perspective (white is positive)
-    let scoreA = parseScoreToCp(nodeA.pvLines['1']?.score);
-    let scoreB = parseScoreToCp(nodeB.pvLines['1']?.score);
+    let scoreA = parseScoreToPawns(nodeA.pvLines['1']?.score);
+    let scoreB = parseScoreToPawns(nodeB.pvLines['1']?.score);
     
     // If node B has no engine score (e.g. checkmate reached), evaluate it manually
     if (scoreB === undefined) {
         const gameB = new Chess(nodeB.fen);
         if (gameB.isCheckmate()) {
-            scoreB = gameB.turn() === 'w' ? -10000 : 10000;
+            scoreB = gameB.turn() === 'w' ? -100.00 : 100.00;
         } else if (gameB.isDraw() || gameB.isStalemate() || gameB.isInsufficientMaterial()) {
             scoreB = 0;
         } else {
@@ -51,15 +57,12 @@ export function classifyMove(nodeA, nodeB, sanMove) {
     
     const turnA = nodeA.fen.split(' ')[1];
     
-    // Engine scores in App.jsx are already converted to absolute (White is positive)
-    let absA = scoreA;
-    let absB = scoreB;
+    const winProbA = getWinProbability(scoreA);
+    const winProbB = getWinProbability(scoreB);
     
-    // Delta from the perspective of the player who made the move
-    // If White moved, Delta = absB - absA (positive means White improved or engine found better line)
-    // If Black moved, Delta = absA - absB (positive means Black improved)
-    let delta = turnA === 'w' ? (absB - absA) : (absA - absB);
-    
+    // Delta in win probability from perspective of the player to move
+    let probDelta = turnA === 'w' ? (winProbB - winProbA) : (winProbA - winProbB);
+
     // Get top moves of parent
     const topMoves = [];
     for (let i = 1; i <= Object.keys(nodeA.pvLines).length; i++) {
@@ -69,31 +72,26 @@ export function classifyMove(nodeA, nodeB, sanMove) {
     const topMoveSan = topMoves.length > 0 ? topMoves[0].san.split(' ')[0] : null;
     const isTopMove = topMoveSan === sanMove;
     
-    let advantageOverOthers = 0;
+    let probAdvantageOverOthers = 0;
     if (isTopMove && topMoves.length > 1) {
-        const score1 = parseScoreToCp(topMoves[0].score);
-        const score2 = parseScoreToCp(topMoves[1].score);
-        // From the perspective of the player to move
-        advantageOverOthers = turnA === 'w' ? (score1 - score2) : (score2 - score1);
+        const score1 = parseScoreToPawns(topMoves[0].score);
+        const score2 = parseScoreToPawns(topMoves[1].score);
+        const prob1 = getWinProbability(score1);
+        const prob2 = getWinProbability(score2);
+        probAdvantageOverOthers = turnA === 'w' ? (prob1 - prob2) : (prob2 - prob1);
     }
-
-    // Check material sacrifice
-    const matA = countMaterial(nodeA.fen);
-    const matB = countMaterial(nodeB.fen);
-    let isSacrifice = false;
-    if (turnA === 'w' && matB.white < matA.white && delta >= -0.5) isSacrifice = true;
-    if (turnA === 'b' && matB.black < matA.black && delta >= -0.5) isSacrifice = true;
 
     // Classification Logic
     if (isTopMove) {
-        if (isSacrifice && advantageOverOthers >= 1.0) return '!!'; // Brilliant
-        if (advantageOverOthers >= 1.0) return '!'; // Strong move
+        if (probAdvantageOverOthers >= 15) return '!!'; // Brilliant (found a >15% win prob only move)
+        if (probAdvantageOverOthers >= 5) return '!'; // Strong move
         return '★'; // Best move
     }
 
-    if (delta > -0.5) return '✓'; // Good
-    if (delta > -1.0) return '?!'; // Inaccuracy
-    if (delta > -2.0) return '?'; // Mistake
+    // Drop in win percentage -> classification
+    if (probDelta > -3) return '✓'; // Good
+    if (probDelta > -10) return '?!'; // Inaccuracy
+    if (probDelta > -20) return '?'; // Mistake
     return '??'; // Blunder
 }
 

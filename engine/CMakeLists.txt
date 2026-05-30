@@ -38,7 +38,6 @@ list(APPEND SRC_FILES "src/eval/syzygy/tbprobe.c")
 # Do not include example files from nnue-probe if any
 list(REMOVE_ITEM SRC_FILES "${CMAKE_SOURCE_DIR}/src/eval/nnue/example.cpp")
 
-list(REMOVE_ITEM SRC_FILES "${CMAKE_SOURCE_DIR}/src/core/magics_generator.cpp")
 add_executable(pawnGO 
     ${SRC_FILES}
 )

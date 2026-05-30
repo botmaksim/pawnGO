@@ -33,6 +33,10 @@ function App() {
   const [pvLines, setPvLines] = useState({}); // map of multipv index -> line object
   const [multiPvCount, setMultiPvCount] = useState(3);
   const [analysisDepth, setAnalysisDepth] = useState(15);
+  const isEngineSearchingRef = useRef(false);
+  const pendingGoRef = useRef(null);
+  const ignoringStaleInfoRef = useRef(false);
+
   
   // Full Game Analysis
   const [isAnalyzingGame, setIsAnalyzingGame] = useState(false);
@@ -158,8 +162,7 @@ function App() {
           setEngineReady(true);
           // Send initial setup
           wsRef.current.send('uci');
-          wsRef.current.send(`setoption name MultiPV value ${multiPvCount}`);
-          requestAnalysis(currentFenRef.current);
+          // Engine will start analyzing via the [multiPvCount, engineReady] useEffect 
           return;
       }
       
@@ -169,14 +172,12 @@ function App() {
       }
     };
 
-    // We don't have an exact "onopen" for Workers, it's ready immediately
-    // but the engine takes time to initialize (download NNUE, etc.).
-    // So we wait for 'isready' from the worker above.
-
     wsRef.current.onmessage = (event) => {
       const msg = event.data;
       
       if (msg.startsWith('info')) {
+        if (ignoringStaleInfoRef.current) return;
+        
         const depthMatch = msg.match(/depth (\d+)/);
         const multipvMatch = msg.match(/multipv (\d+)/) || [null, '1'];
         const scoreCpMatch = msg.match(/score cp (-?\d+)/);
@@ -258,6 +259,22 @@ function App() {
           }
         }
       } else if (msg.startsWith('bestmove')) {
+        isEngineSearchingRef.current = false;
+        if (pendingGoRef.current) {
+            const fen = pendingGoRef.current.fen;
+            const depth = pendingGoRef.current.depth;
+            pendingGoRef.current = null;
+            ignoringStaleInfoRef.current = false;
+            
+            latestPvLinesRef.current = {};
+            setPvLines({});
+            
+            isEngineSearchingRef.current = true;
+            wsRef.current.send(`position fen ${fen}`);
+            wsRef.current.send(`go depth ${depth}`);
+            return;
+        }
+
         if (isAnalyzingGameRef.current && currentAnalyzeNodeIdRef.current) {
           setNodes(prev => ({
             ...prev,
@@ -290,7 +307,15 @@ function App() {
     return () => {
       if (wsRef.current) wsRef.current.close();
     };
-  }, [multiPvCount]);
+  }, []); // Run ONLY ONCE!
+
+
+  useEffect(() => {
+    if (engineReady && wsRef.current && wsRef.current.readyState === 1) {
+       wsRef.current.send(`setoption name MultiPV value ${multiPvCount}`);
+       requestAnalysis(currentFenRef.current);
+    }
+  }, [multiPvCount, engineReady]);
 
   const processNextAnalysisNode = () => {
     if (analyzeQueueRef.current.length === 0) {
@@ -320,12 +345,7 @@ function App() {
     currentAnalyzeNodeIdRef.current = nextId;
     setAnalyzeProgress(p => ({ ...p, current: p.total - analyzeQueueRef.current.length }));
     
-    // Clear old pvLines so they don't leak
-    latestPvLinesRef.current = {};
-    if (wsRef.current && wsRef.current.readyState === 1) {
-      wsRef.current.send(`position fen ${nodesRef.current[nextId].fen}`);
-      wsRef.current.send(`go depth ${analysisDepth}`); // analyze current node
-    }
+    requestAnalysis(nodesRef.current[nextId].fen);
   };
 
   const startFullGameAnalysis = () => {
@@ -336,12 +356,7 @@ function App() {
     setIsAnalyzingGame(true);
     isAnalyzingGameRef.current = true;
     
-    if (wsRef.current && wsRef.current.readyState === 1) {
-        wsRef.current.send('stop'); // Stop any ongoing background analysis
-        setTimeout(() => {
-            processNextAnalysisNode();
-        }, 100);
-    }
+    processNextAnalysisNode();
   };
 
   const cancelFullGameAnalysis = () => {
@@ -349,25 +364,24 @@ function App() {
     setIsAnalyzingGame(false);
     isAnalyzingGameRef.current = false;
     
-    if (wsRef.current && wsRef.current.readyState === 1) {
-        wsRef.current.send('stop');
-        setTimeout(() => {
-            requestAnalysis(nodesRef.current[currentNodeId].fen); // Resume normal analysis
-        }, 100);
-    }
+    requestAnalysis(nodesRef.current[currentNodeId].fen); // Resume normal analysis
   };
 
-  const requestAnalysis = (fen) => {
-    if (isAnalyzingGameRef.current) return; // don't interrupt full game analysis
+  const requestAnalysis = (fen, overrideDepth = null) => {
+    const depthToUse = overrideDepth !== null ? overrideDepth : analysisDepth;
     if (wsRef.current && wsRef.current.readyState === 1) {
-      wsRef.current.send('stop');
-      // Set a small delay to ignore old messages and start fresh
-      setTimeout(() => {
+      if (isEngineSearchingRef.current) {
+        pendingGoRef.current = { fen, depth: depthToUse };
+        ignoringStaleInfoRef.current = true;
+        wsRef.current.send('stop');
+      } else {
         latestPvLinesRef.current = {};
         setPvLines({});
+        isEngineSearchingRef.current = true;
+        ignoringStaleInfoRef.current = false;
         wsRef.current.send(`position fen ${fen}`);
-        wsRef.current.send(`go depth ${analysisDepth}`);
-      }, 50);
+        wsRef.current.send(`go depth ${depthToUse}`);
+      }
     }
   };
 
@@ -545,10 +559,20 @@ function App() {
   }
 
   function applySetup() {
+    try {
+        new Chess(setupFenInput);
+    } catch(e) {
+        alert("Invalid FEN: " + e.message);
+        return;
+    }
     setNodes({
       'root': { id: 'root', fen: setupFenInput, san: 'Setup Position', parentId: null, children: [], evalStr: null, annotation: '', ply: 0 }
     });
     setCurrentNodeId('root');
+    latestPvLinesRef.current = {};
+    setPvLines({});
+    setMoveFrom('');
+    setOptionSquares({});
     setIsSetupMode(false);
     requestAnalysis(setupFenInput);
   }
@@ -986,16 +1010,17 @@ function App() {
                 onChange={(e) => {
                   const d = parseInt(e.target.value, 10);
                   setAnalysisDepth(d);
-                  if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                    wsRef.current.send(`go depth ${d}`);
+                  if (wsRef.current && wsRef.current.readyState === 1) {
+                    // requestAnalysis will be triggered via useEffect or we can trigger it here:
+                    requestAnalysis(currentFenRef.current, d);
                   }
                 }}
                 style={{ width: '100px' }}
               />
               <div className="btn-group">
-                <button className={multiPvCount === 1 ? 'active' : ''} onClick={() => { setMultiPvCount(1); if (wsRef.current) wsRef.current.send('setoption name MultiPV value 1'); }}>1</button>
-                <button className={multiPvCount === 3 ? 'active' : ''} onClick={() => { setMultiPvCount(3); if (wsRef.current) wsRef.current.send('setoption name MultiPV value 3'); }}>3</button>
-                <button className={multiPvCount === 5 ? 'active' : ''} onClick={() => { setMultiPvCount(5); if (wsRef.current) wsRef.current.send('setoption name MultiPV value 5'); }}>5</button>
+                <button className={multiPvCount === 1 ? 'active' : ''} onClick={() => setMultiPvCount(1)}>1</button>
+                <button className={multiPvCount === 3 ? 'active' : ''} onClick={() => setMultiPvCount(3)}>3</button>
+                <button className={multiPvCount === 5 ? 'active' : ''} onClick={() => setMultiPvCount(5)}>5</button>
               </div>
             </div>
           </div>

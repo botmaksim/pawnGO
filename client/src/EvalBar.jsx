@@ -25,11 +25,13 @@ const EvalBar = ({ score, boardOrientation }) => {
        fillPercentage = 50;
        displayScore = 'Book';
     } else {
-       const cp = parseFloat(score) || 0;
-       // Non-linear scale mapping CP to fill percentage:
-       // 50 + 50 * (2/PI) * arctan(cp / 4)
-       // This gives a smooth curve where 0 is 50%, +4 is 75%, +10 is ~88%
-       fillPercentage = 50 + 50 * (2 / Math.PI) * Math.atan(cp / 4.0);
+       const pawns = parseFloat(score) || 0;
+       const cp = pawns * 100; // Convert back to centipawns
+       
+       // Stockfish 16 WDL (Win/Draw/Loss) win probability formula
+       // Provides the most accurate, modern smooth scaling for the evaluation bar
+       const winPercentage = 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * Math.max(-4000, Math.min(4000, cp)))) - 1);
+       fillPercentage = winPercentage;
     }
   }
 
