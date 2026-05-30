@@ -500,6 +500,9 @@ namespace Search {
     U64 root_occ[3];
     int root_s, root_e, root_c;
     int root_max_depth;
+    int root_search_id;
+
+    std::mutex main_search_mtx;
 
     void helper_thread_loop(int thread_id) {
         while (true) {
@@ -514,6 +517,7 @@ namespace Search {
             pos.enpassant = root_e;
             pos.castle = root_c;
             pos.hash_key = Zobrist::generate_hash_key(pos);
+            Search::thread_search_id = root_search_id;
             lock.unlock();
             
             Evaluation::allocate_nnue_stack();
@@ -663,7 +667,9 @@ namespace Search {
         int score;
     };
 
-    void search_position(BoardState& pos, int depth) {
+    void search_position(BoardState& pos, int depth, int current_search_id) {
+        std::lock_guard<std::mutex> main_lock(main_search_mtx);
+
         // We do NOT parse current_fen here, because main.cpp already sets up the board and applies moves!
         clear_heuristics();
         
@@ -766,6 +772,7 @@ namespace Search {
         {
             std::lock_guard<std::mutex> lock(search_mtx);
             root_max_depth = depth;
+            root_search_id = current_search_id;
             search_running = true;
         }
         search_cv.notify_all();

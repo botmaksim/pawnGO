@@ -470,6 +470,11 @@ function App() {
   }
 
   function onDrop(sourceSquare, targetSquare, piece) {
+    if (!isSetupMode && playMode !== 'Analysis') {
+      if (playMode === 'Play as White' && game.turn() === 'b') return false;
+      if (playMode === 'Play as Black' && game.turn() === 'w') return false;
+    }
+
     if (isSetupMode) {
       const gameCopy = new Chess(setupFenInput);
       try {
