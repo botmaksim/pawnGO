@@ -18,6 +18,10 @@
 
 #include "polyglot.h"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 std::ofstream engine_logger("engine.log", std::ios_base::app);
 
 bool UseOwnBook = true;
@@ -643,17 +647,18 @@ int main() {
     // Do nothing here, Wasm engine is waiting for execute_uci_command
     wasm_search_thread_instance = std::thread(wasm_search_worker);
     log("Wasm Engine initialized. Waiting for commands.");
+    emscripten_exit_with_live_runtime();
 #else
     uciLoop();
     log("Engine shutting down cleanly.");
-#endif
-
     return 0;
+#endif
 }
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 extern "C" {
+
     std::thread wasm_search_thread;
     EMSCRIPTEN_KEEPALIVE
     void wasm_send_command(const char* cmd) {

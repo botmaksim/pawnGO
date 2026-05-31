@@ -568,8 +568,8 @@ namespace Search {
             // Sleep until next launch
             lock.lock();
             while (search_running && !exit_threads) {
-                // If main thread hasn't set search_running = false yet, wait for it
-                search_cv.wait_for(lock, std::chrono::milliseconds(1));
+                // Wait for the main thread to set search_running = false and notify
+                search_cv.wait(lock);
             }
         }
     }
@@ -929,6 +929,7 @@ namespace Search {
             std::lock_guard<std::mutex> lock(search_mtx);
             search_running = false;
         }
+        search_cv.notify_all();
 
         Move best_final_move = global_best_moves[0];
         if (best_final_move == 0 && legal_moves.size() > 0) best_final_move = legal_moves[0].move;
