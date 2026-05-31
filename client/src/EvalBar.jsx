@@ -26,11 +26,10 @@ const EvalBar = ({ score, boardOrientation }) => {
        displayScore = 'Book';
     } else {
        const pawns = parseFloat(score) || 0;
-       const cp = pawns * 100; // Convert back to centipawns
        
-       // Stockfish 16 WDL (Win/Draw/Loss) win probability formula
-       // Provides the most accurate, modern smooth scaling for the evaluation bar
-       const winPercentage = 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * Math.max(-4000, Math.min(4000, cp)))) - 1);
+       // Non-linear scale mapping pawns to fill percentage:
+       // Original pawnGO formulation
+       const winPercentage = 50 + 50 * (2 / Math.PI) * Math.atan(pawns / 4.0);
        fillPercentage = winPercentage;
     }
   }
@@ -40,7 +39,12 @@ const EvalBar = ({ score, boardOrientation }) => {
   const finalFill = isBlackBottom ? 100 - fillPercentage : fillPercentage;
   
   // The text should be at the top if White is winning (and white is top), etc.
-  const textIsWhite = score === 'Book' ? true : (parseFloat(score) >= 0 || score.startsWith('M'));
+  const textIsWhite = score === 'Book' ? true : (
+      score === 'TBW' ? true : 
+      score === 'TBL' ? false :
+      score.startsWith('M') ? true :
+      parseFloat(score) >= 0
+  );
   
   return (
     <div style={{

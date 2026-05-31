@@ -17,6 +17,7 @@ export function parseScoreToPawns(scoreStr) {
     if (!scoreStr) return undefined;
     if (scoreStr === 'TBW') return 199.00;
     if (scoreStr === 'TBL') return -199.00;
+    if (scoreStr === 'Book') return 0;
     if (scoreStr.startsWith('M')) {
         const moves = parseInt(scoreStr.substring(1), 10);
         return 100.00 - moves; // Mate is very high score
@@ -25,13 +26,8 @@ export function parseScoreToPawns(scoreStr) {
         const moves = parseInt(scoreStr.substring(2), 10);
         return -100.00 + moves; // Negative mate
     }
-    return parseFloat(scoreStr);
-}
-
-function getWinProbability(pawns) {
-    if (pawns === undefined) return undefined;
-    const cp = pawns * 100;
-    return 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * Math.max(-4000, Math.min(4000, cp)))) - 1);
+    const pf = parseFloat(scoreStr);
+    return isNaN(pf) ? undefined : pf;
 }
 
 // Classify a move from Node A to Node B
@@ -57,11 +53,8 @@ export function classifyMove(nodeA, nodeB, sanMove) {
     
     const turnA = nodeA.fen.split(' ')[1];
     
-    const winProbA = getWinProbability(scoreA);
-    const winProbB = getWinProbability(scoreB);
-    
-    // Delta in win probability from perspective of the player to move
-    let probDelta = turnA === 'w' ? (winProbB - winProbA) : (winProbA - winProbB);
+    // Delta in raw pawns from perspective of the player to move
+    let pawnsDelta = turnA === 'w' ? (scoreB - scoreA) : (scoreA - scoreB);
 
     // Get top moves of parent
     const topMoves = [];
@@ -72,26 +65,24 @@ export function classifyMove(nodeA, nodeB, sanMove) {
     const topMoveSan = topMoves.length > 0 ? topMoves[0].san.split(' ')[0] : null;
     const isTopMove = topMoveSan === sanMove;
     
-    let probAdvantageOverOthers = 0;
+    let pawnsAdvantageOverOthers = 0;
     if (isTopMove && topMoves.length > 1) {
         const score1 = parseScoreToPawns(topMoves[0].score);
         const score2 = parseScoreToPawns(topMoves[1].score);
-        const prob1 = getWinProbability(score1);
-        const prob2 = getWinProbability(score2);
-        probAdvantageOverOthers = turnA === 'w' ? (prob1 - prob2) : (prob2 - prob1);
+        pawnsAdvantageOverOthers = turnA === 'w' ? (score1 - score2) : (score2 - score1);
     }
 
     // Classification Logic
     if (isTopMove) {
-        if (probAdvantageOverOthers >= 15) return '!!'; // Brilliant (found a >15% win prob only move)
-        if (probAdvantageOverOthers >= 5) return '!'; // Strong move
+        if (pawnsAdvantageOverOthers >= 2.0 && Math.abs(scoreA) < 5.0) return '!!'; // Brilliant (found a far superior move in competitive position)
+        if (pawnsAdvantageOverOthers >= 1.0) return '!'; // Strong move
         return '★'; // Best move
     }
 
-    // Drop in win percentage -> classification
-    if (probDelta > -3) return '✓'; // Good
-    if (probDelta > -10) return '?!'; // Inaccuracy
-    if (probDelta > -20) return '?'; // Mistake
+    // Drop in pawn evaluation -> classification
+    if (pawnsDelta > -0.5) return '✓'; // Good
+    if (pawnsDelta > -1.2) return '?!'; // Inaccuracy
+    if (pawnsDelta > -2.5) return '?'; // Mistake
     return '??'; // Blunder
 }
 

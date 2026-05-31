@@ -174,6 +174,8 @@ function App() {
 
     wsRef.current.onmessage = (event) => {
       const msg = event.data;
+      // DEBUG: Log all engine messages
+      console.log("[Engine Msg]:", msg);
       
       if (msg.startsWith('info')) {
         if (ignoringStaleInfoRef.current) return;
@@ -222,17 +224,24 @@ function App() {
               const sanGame = new Chess();
               try { sanGame.load(isAnalyzingGameRef.current && currentAnalyzeNodeIdRef.current ? nodesRef.current[currentAnalyzeNodeIdRef.current].fen : currentFenRef.current); } catch(e) {}
               const rawPv = pvMatch[1].trim().split(' ');
-              const newSanMoves = rawPv.map(move => {
-                  if (move.length < 4) return move;
+              const newSanMoves = [];
+              for (const move of rawPv) {
+                  if (move.length < 4) continue;
                   const moveObj = {
                       from: move.substring(0, 2),
                       to: move.substring(2, 4),
                       promotion: move.length === 5 ? move.substring(4, 5) : undefined
                   };
-                  const m = sanGame.move(moveObj);
-                  if (!m) throw new Error("Illegal move for current fen");
-                  return m.san;
-              });
+                  try {
+                      const m = sanGame.move(moveObj);
+                      if (m && m.san) {
+                          newSanMoves.push(m.san);
+                      }
+                  } catch (err) {
+                      // Move is illegal in current FEN, just stop parsing the PV here.
+                      break;
+                  }
+              }
               sanPv = newSanMoves.join(' ');
           } catch(e) {
               // Stale info depth for previous fen, ignore it

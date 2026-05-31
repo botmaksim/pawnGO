@@ -18,7 +18,7 @@
 - **Full Game Analysis:** Automatically analyzes every move in a game, detecting Best moves (★), Inaccuracies (?!), Mistakes (?), Blunders (??), and Brilliant sacrifices (!!).
 - **Setup Mode:** Custom FEN string editor to easily set up and instantly analyze specific positions.
 
-## Engine Strength & Testing
+## Engine Strength & Testing 🏆
 
 The native C++ variant of `pawnGO` was heavily tested using fast time controls against other established chess engines. With the recent port to WebAssembly utilizing Emscripten SIMD, the performance remains highly competitive:
 
