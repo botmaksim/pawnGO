@@ -36,7 +36,7 @@ namespace Search {
     void stop_threads();
     
     // Multithreaded root search
-    void search_position(BoardState& pos, int depth, int current_search_id = -1);
+    void search_position(BoardState& pos, int depth, int current_search_id = -1, long long time_for_move_ms = -1);
 }
 
 #endif // SEARCH_H

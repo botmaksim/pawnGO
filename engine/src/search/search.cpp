@@ -6,6 +6,7 @@
 #include "tt.h"
 #include "zobrist.h"
 #include <iostream>
+#include <sstream>
 #include <algorithm>
 #include <thread>
 #include <chrono>
@@ -22,8 +23,18 @@ namespace Search {
     std::atomic<int> search_id(0);
     thread_local int thread_search_id = 0;
     
+    std::chrono::time_point<std::chrono::steady_clock> search_end_time;
+    bool time_managed = false;
+    
     inline bool is_stopped() {
-        return stopped || (thread_search_id != 0 && thread_search_id != search_id.load(std::memory_order_relaxed));
+        if (stopped || (thread_search_id != 0 && thread_search_id != search_id.load(std::memory_order_relaxed))) return true;
+        if (time_managed && (nodes.load(std::memory_order_relaxed) & 2047) == 0) {
+            if (std::chrono::steady_clock::now() >= search_end_time) {
+                stopped = true;
+                return true;
+            }
+        }
+        return false;
     }
     
     std::atomic<long long> nodes(0);
@@ -667,11 +678,18 @@ namespace Search {
         int score;
     };
 
-    void search_position(BoardState& pos, int depth, int current_search_id) {
+    void search_position(BoardState& pos, int depth, int current_search_id, long long time_for_move_ms) {
         std::lock_guard<std::mutex> main_lock(main_search_mtx);
 
         if (current_search_id != -1 && current_search_id != search_id.load(std::memory_order_relaxed)) {
             return; // Superseded before it even started!
+        }
+
+        if (time_for_move_ms != -1) {
+            time_managed = true;
+            search_end_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(time_for_move_ms);
+        } else {
+            time_managed = false;
         }
 
         // We do NOT parse current_fen here, because main.cpp already sets up the board and applies moves!
@@ -724,7 +742,8 @@ namespace Search {
 
         if (legal_moves.empty()) {
             if (current_search_id == -1 || current_search_id == search_id.load(std::memory_order_relaxed)) {
-                std::cout << "bestmove 0000" << std::endl;
+                printf("bestmove 0000\n");
+                fflush(stdout);
             }
             return;
         }
@@ -766,7 +785,8 @@ namespace Search {
                     else if (promotes == TB_PROMOTES_QUEEN) m_str += "q";
                 }
                 
-                std::cout << "bestmove " << m_str << std::endl;
+                printf("bestmove %s\n", m_str.c_str());
+                fflush(stdout);
                 return;
             }
         }
@@ -884,25 +904,20 @@ namespace Search {
                     
                     std::string pv_line = extract_pv(pos, current_depth);
                     
-                    std::cout << "info depth " << current_depth 
-                              << " multipv " << (pv_idx + 1) << " ";
-                              
                     if (best_score > 30000) {
                         int plies = 31000 - best_score;
                         int moves = (plies + 1) / 2;
-                        std::cout << "score mate " << moves;
+                        printf("info depth %d multipv %d score mate %d%s nodes %lld pv %s\n", 
+                               current_depth, (pv_idx + 1), moves, (is_book_slot ? " book 1" : ""), (long long)nodes.load(std::memory_order_relaxed), pv_line.c_str());
                     } else if (best_score < -30000) {
                         int plies = 31000 + best_score;
                         int moves = (plies + 1) / 2;
-                        std::cout << "score mate " << -moves;
+                        printf("info depth %d multipv %d score mate %d%s nodes %lld pv %s\n", 
+                               current_depth, (pv_idx + 1), -moves, (is_book_slot ? " book 1" : ""), (long long)nodes.load(std::memory_order_relaxed), pv_line.c_str());
                     } else {
-                        std::cout << "score cp " << best_score;
+                        printf("info depth %d multipv %d score cp %d%s nodes %lld pv %s\n", 
+                               current_depth, (pv_idx + 1), best_score, (is_book_slot ? " book 1" : ""), (long long)nodes.load(std::memory_order_relaxed), pv_line.c_str());
                     }
-                    
-                    if (is_book_slot) std::cout << " book 1";
-                    
-                    std::cout << " nodes " << nodes 
-                              << " pv " << pv_line << std::endl;
                 }
             }
             if (is_stopped()) break;
@@ -939,7 +954,8 @@ namespace Search {
             if (p_type == 4) move_str += "q";
         }
         
-        std::cout << "bestmove " << move_str << std::endl;
+        printf("bestmove %s\n", move_str.c_str());
+        fflush(stdout);
     }
 }
 }

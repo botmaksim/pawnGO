@@ -269,18 +269,10 @@ void uciLoop() {
                 thread_pos.castle = t_cas;
                 thread_pos.hash_key = t_hash;
                 Search::thread_search_id = current_search_id;
-                Search::search_position(thread_pos, depth, current_search_id);
+                Search::search_position(thread_pos, depth, current_search_id, (depth_idx == std::string::npos) ? time_for_move : -1);
             });
             
             if (time_for_move != -1 && depth_idx == std::string::npos) {
-                // Time-based search
-                std::thread timer_thread([time_for_move, current_search_id]() {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(time_for_move));
-                    if (Search::search_id.load(std::memory_order_relaxed) == current_search_id) {
-                        Search::stopped = true;
-                    }
-                });
-                timer_thread.detach();
                 log("Search started in background thread for " + std::to_string(time_for_move) + " ms");
             } else {
                 log("Search started in background thread for depth " + std::to_string(depth));
@@ -306,6 +298,40 @@ void uciLoop() {
     Search::stop_threads();
 }
 
+#ifdef __EMSCRIPTEN__
+#include <mutex>
+#include <condition_variable>
+
+std::thread wasm_search_thread_instance;
+std::mutex wasm_search_mtx;
+std::condition_variable wasm_search_cv;
+bool wasm_search_ready = false;
+bool wasm_search_quit = false;
+
+BoardState wasm_thread_pos;
+int wasm_thread_depth = 15;
+int wasm_thread_search_id = 0;
+long long wasm_thread_time_for_move = -1;
+
+void wasm_search_worker() {
+    while (true) {
+        std::unique_lock<std::mutex> lock(wasm_search_mtx);
+        wasm_search_cv.wait(lock, []() { return wasm_search_ready || wasm_search_quit; });
+        if (wasm_search_quit) break;
+        
+        BoardState p = wasm_thread_pos;
+        int d = wasm_thread_depth;
+        int s_id = wasm_thread_search_id;
+        long long t_ms = wasm_thread_time_for_move;
+        wasm_search_ready = false;
+        lock.unlock();
+
+        Search::thread_search_id = s_id;
+        Search::search_position(p, d, s_id, t_ms);
+    }
+}
+#endif
+
 void execute_uci_command(const std::string& line, std::thread& search_thread) {
     // We basically copy the inside of the while loop into here for the Wasm API
     log("IN: " + line);
@@ -314,15 +340,17 @@ void execute_uci_command(const std::string& line, std::thread& search_thread) {
         Search::stopped = true;
         Search::stop_threads();
 #ifdef __EMSCRIPTEN__
-        if (search_thread.joinable()) search_thread.detach();
+        {
+            std::lock_guard<std::mutex> lock(wasm_search_mtx);
+            wasm_search_quit = true;
+        }
+        wasm_search_cv.notify_one();
 #else
         if (search_thread.joinable()) search_thread.join();
 #endif
     } else if (line == "stop") {
         Search::stopped = true;
-#ifdef __EMSCRIPTEN__
-        if (search_thread.joinable()) search_thread.detach();
-#else
+#ifndef __EMSCRIPTEN__
         if (search_thread.joinable()) search_thread.join();
 #endif
     } else if (line == "uci") {
@@ -481,7 +509,9 @@ void execute_uci_command(const std::string& line, std::thread& search_thread) {
         
         // Stop any ongoing search first
         Search::stopped = true;
+#ifndef __EMSCRIPTEN__
         if (search_thread.joinable()) search_thread.join();
+#endif
 
         int depth = 100;
         size_t depth_idx = line.find("depth ");
@@ -525,6 +555,25 @@ void execute_uci_command(const std::string& line, std::thread& search_thread) {
         U64 t_hash = pos.hash_key;
 
         // Launch search in a background thread so UCI remains responsive
+#ifdef __EMSCRIPTEN__
+        BoardState thread_pos;
+        for (int i = 0; i < 12; i++) thread_pos.pieceBB[i] = t_pieceBB[i];
+        for (int i = 0; i < 3; i++) thread_pos.occupancies[i] = t_occ[i];
+        thread_pos.side = t_side;
+        thread_pos.enpassant = t_ep;
+        thread_pos.castle = t_cas;
+        thread_pos.hash_key = t_hash;
+        
+        {
+            std::lock_guard<std::mutex> lock(wasm_search_mtx);
+            wasm_thread_pos = thread_pos;
+            wasm_thread_depth = depth;
+            wasm_thread_search_id = current_search_id;
+            wasm_thread_time_for_move = (depth_idx == std::string::npos) ? time_for_move : -1;
+            wasm_search_ready = true;
+        }
+        wasm_search_cv.notify_one();
+#else
         search_thread = std::thread([=]() {
             BoardState thread_pos;
             for (int i = 0; i < 12; i++) thread_pos.pieceBB[i] = t_pieceBB[i];
@@ -534,18 +583,11 @@ void execute_uci_command(const std::string& line, std::thread& search_thread) {
             thread_pos.castle = t_cas;
             thread_pos.hash_key = t_hash;
             Search::thread_search_id = current_search_id;
-            Search::search_position(thread_pos, depth, current_search_id);
+            Search::search_position(thread_pos, depth, current_search_id, (depth_idx == std::string::npos) ? time_for_move : -1);
         });
+#endif
         
         if (time_for_move != -1 && depth_idx == std::string::npos) {
-            // Time-based search
-            std::thread timer_thread([time_for_move, current_search_id]() {
-                std::this_thread::sleep_for(std::chrono::milliseconds(time_for_move));
-                if (Search::search_id.load(std::memory_order_relaxed) == current_search_id) {
-                    Search::stopped = true;
-                }
-            });
-            timer_thread.detach();
             log("Search started in background thread for " + std::to_string(time_for_move) + " ms");
         } else {
             log("Search started in background thread for depth " + std::to_string(depth));
@@ -599,6 +641,7 @@ int main() {
 
 #ifdef __EMSCRIPTEN__
     // Do nothing here, Wasm engine is waiting for execute_uci_command
+    wasm_search_thread_instance = std::thread(wasm_search_worker);
     log("Wasm Engine initialized. Waiting for commands.");
 #else
     uciLoop();

@@ -18,6 +18,14 @@ app.get('/api/tablebase', (req, res) => {
 
     const engineProcess = spawn(enginePath, []);
 
+    engineProcess.on('error', (err) => {
+        console.error('Failed to start engine process:', err);
+        clearTimeout(timeout);
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Failed to start engine' });
+        }
+    });
+
     let bestmove = null;
     let outputBuffer = '';
 
