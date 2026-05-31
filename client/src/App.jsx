@@ -126,6 +126,7 @@ function App() {
                               wsRef.current.onmessage({ data: `info depth 64 score cp 19999 pv ${bestmove}` });
                               wsRef.current.onmessage({ data: `bestmove ${bestmove}` });
                           }
+                          wsRef.current.isTablebasePending = null;
                       } else {
                           // Fallback to Wasm
                           wsRef.current.isTablebasePending = null;
@@ -268,6 +269,7 @@ function App() {
         if (pendingGoRef.current) {
             const fen = pendingGoRef.current.fen;
             const depth = pendingGoRef.current.depth;
+            const isBotTurn = pendingGoRef.current.isBotTurn;
             pendingGoRef.current = null;
             ignoringStaleInfoRef.current = false;
             
@@ -276,7 +278,11 @@ function App() {
             
             isEngineSearchingRef.current = true;
             wsRef.current.send(`position fen ${fen}`);
-            wsRef.current.send(`go depth ${depth}`);
+            if (isBotTurn) {
+                wsRef.current.send(`go movetime 3000`);
+            } else {
+                wsRef.current.send(`go depth ${depth}`);
+            }
             return;
         }
 
@@ -374,9 +380,23 @@ function App() {
 
   const requestAnalysis = (fen, overrideDepth = null) => {
     const depthToUse = overrideDepth !== null ? overrideDepth : analysisDepth;
+    
+    let isBotTurn = false;
+    if (playModeRef.current !== 'Analysis') {
+        try {
+            const tempGame = new Chess();
+            tempGame.load(fen);
+            const turn = tempGame.turn();
+            if ((playModeRef.current === 'Play as White' && turn === 'b') || 
+                (playModeRef.current === 'Play as Black' && turn === 'w')) {
+                isBotTurn = true;
+            }
+        } catch (e) {}
+    }
+
     if (wsRef.current && wsRef.current.readyState === 1) {
       if (isEngineSearchingRef.current) {
-        pendingGoRef.current = { fen, depth: depthToUse };
+        pendingGoRef.current = { fen, depth: depthToUse, isBotTurn };
         ignoringStaleInfoRef.current = true;
         wsRef.current.send('stop');
       } else {
@@ -385,7 +405,11 @@ function App() {
         isEngineSearchingRef.current = true;
         ignoringStaleInfoRef.current = false;
         wsRef.current.send(`position fen ${fen}`);
-        wsRef.current.send(`go depth ${depthToUse}`);
+        if (isBotTurn) {
+            wsRef.current.send(`go movetime 3000`);
+        } else {
+            wsRef.current.send(`go depth ${depthToUse}`);
+        }
       }
     }
   };
