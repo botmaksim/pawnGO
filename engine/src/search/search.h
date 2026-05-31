@@ -19,7 +19,7 @@ namespace Search {
 
     // History and Killer Heuristics (shared for lazy SMP)
     extern std::atomic<int> history_table[2][64][64];
-    extern std::atomic<Move> killer_moves[2][100]; 
+    extern std::atomic<Move> killer_moves[2][200]; 
     extern std::atomic<Move> counter_move[64][64];
     extern int LMR_table[64][64];
     void init_lmr_table();
