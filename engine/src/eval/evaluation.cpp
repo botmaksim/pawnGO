@@ -10,9 +10,10 @@
 
 namespace Evaluation {
     // NNUE Piece Map (from pawnGO to nnue-probe format)
-    const int nnue_piece_map[12] = {
+    const int nnue_piece_map[16] = {
         6, 5, 4, 3, 2, 1,   // P N B R Q K -> wpawn...wking
-        12, 11, 10, 9, 8, 7 // p n b r q k -> bpawn...bking
+        12, 11, 10, 9, 8, 7, // p n b r q k -> bpawn...bking
+        0, 0, 0, 0
     };
 
     bool use_nnue = false;
@@ -178,6 +179,16 @@ namespace Evaluation {
 
     thread_local NNUEdata* nnue_stack = nullptr;
 
+    struct NNUEStackManager {
+        ~NNUEStackManager() {
+            if (nnue_stack) {
+                free(nnue_stack);
+                nnue_stack = nullptr;
+            }
+        }
+    };
+    thread_local NNUEStackManager nnue_stack_manager;
+
     void allocate_nnue_stack() {
         if (!nnue_stack) {
             if (posix_memalign((void**)&nnue_stack, 64, sizeof(NNUEdata) * MAX_PLY) != 0) {
@@ -195,8 +206,8 @@ namespace Evaluation {
     int evaluate_incremental(const BoardState& pos, int ply) {
         if (!use_nnue || ply >= MAX_PLY) return evaluate(pos);
 
-        int pieces[33];
-        int squares[33];
+        int pieces[65];
+        int squares[65];
         int index = 2;
 
         pieces[0] = 1; // wking
@@ -225,7 +236,7 @@ namespace Evaluation {
                 if (p == K || p == k) continue;
                 
                 U64 bb = pos.pieceBB[p];
-                while (bb) {
+                while (bb && index < 64) {
                     int sq = Bitboard::lsb(bb);
                     pieces[index] = nnue_piece_map[p];
                     squares[index] = sq;
@@ -265,8 +276,8 @@ namespace Evaluation {
         }
 
         if (use_nnue) {
-            int pieces[33];
-            int squares[33];
+            int pieces[65];
+            int squares[65];
             int index = 2; // 0 and 1 are reserved for kings
 
             // Kings must be at index 0 and 1
@@ -281,7 +292,7 @@ namespace Evaluation {
                 if (p == K || p == k) continue;
                 
                 U64 bb = pos.pieceBB[p];
-                while (bb) {
+                while (bb && index < 64) {
                     int sq = Bitboard::lsb(bb);
                     pieces[index] = nnue_piece_map[p];
                     squares[index] = sq;

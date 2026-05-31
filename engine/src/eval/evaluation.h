@@ -9,7 +9,7 @@ namespace Evaluation {
     void init_nnue(const char* file_path);
     int evaluate(const BoardState& pos);
 
-    extern const int nnue_piece_map[12];
+    extern const int nnue_piece_map[16];
     extern bool use_nnue;
     
     const int MAX_PLY = 200;

@@ -6,6 +6,7 @@ namespace TT {
     int num_buckets = 0;
 
     void init(int mb_size) {
+        if (mb_size < 1) mb_size = 1;
         int hash_size = 0x100000 * mb_size;
         num_buckets = hash_size / sizeof(TTBucket);
 

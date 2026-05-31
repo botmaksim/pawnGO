@@ -73,9 +73,11 @@ namespace Bitboard {
                     case 'q': piece = q; break;
                     case 'k': piece = k; break;
                 }
-                if (piece != -1) {
+                if (piece != -1 && file < 8) {
                     int sq = rank * 8 + file;
-                    set_bit(pos.pieceBB[piece], sq);
+                    if (sq >= 0 && sq < 64) {
+                        set_bit(pos.pieceBB[piece], sq);
+                    }
                     file++;
                 }
             }

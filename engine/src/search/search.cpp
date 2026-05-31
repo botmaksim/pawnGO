@@ -30,10 +30,15 @@ namespace Search {
     
     inline bool is_stopped() {
         if (stopped || (thread_search_id != 0 && thread_search_id != search_id.load(std::memory_order_relaxed))) return true;
-        if (time_managed && (nodes.load(std::memory_order_relaxed) & 2047) == 0) {
-            if (std::chrono::steady_clock::now() >= search_end_time) {
-                stopped = true;
-                return true;
+        if (time_managed) {
+            static thread_local int time_check_counter = 0;
+            time_check_counter++;
+            if (time_check_counter > 2048) {
+                time_check_counter = 0;
+                if (std::chrono::steady_clock::now() >= search_end_time) {
+                    stopped = true;
+                    return true;
+                }
             }
         }
         return false;
@@ -132,7 +137,7 @@ namespace Search {
         bool in_check;
         
         MoveList move_list;
-        int scores[512];
+        int scores[256];
         int index;
         int stage; // 0: captures, 1: quiets, 2: done
 
