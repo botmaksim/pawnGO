@@ -308,7 +308,6 @@ void uciLoop() {
 
 std::thread wasm_search_thread_instance;
 std::mutex wasm_search_mtx;
-std::condition_variable wasm_search_cv;
 bool wasm_search_ready = false;
 bool wasm_search_quit = false;
 
@@ -319,16 +318,28 @@ long long wasm_thread_time_for_move = -1;
 
 void wasm_search_worker() {
     while (true) {
-        std::unique_lock<std::mutex> lock(wasm_search_mtx);
-        wasm_search_cv.wait(lock, []() { return wasm_search_ready || wasm_search_quit; });
-        if (wasm_search_quit) break;
+        bool ready;
+        bool quit;
+        {
+            std::lock_guard<std::mutex> lock(wasm_search_mtx);
+            ready = wasm_search_ready;
+            quit = wasm_search_quit;
+        }
+        if (quit) break;
+        if (!ready) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            continue;
+        }
+        
+        {
+            std::lock_guard<std::mutex> lock(wasm_search_mtx);
+            wasm_search_ready = false;
+        }
         
         BoardState p = wasm_thread_pos;
         int d = wasm_thread_depth;
         int s_id = wasm_thread_search_id;
         long long t_ms = wasm_thread_time_for_move;
-        wasm_search_ready = false;
-        lock.unlock();
 
         Search::thread_search_id = s_id;
         Search::search_position(p, d, s_id, t_ms);
@@ -348,7 +359,6 @@ void execute_uci_command(const std::string& line, std::thread& search_thread) {
             std::lock_guard<std::mutex> lock(wasm_search_mtx);
             wasm_search_quit = true;
         }
-        wasm_search_cv.notify_one();
 #else
         if (search_thread.joinable()) search_thread.join();
 #endif
@@ -579,7 +589,6 @@ void execute_uci_command(const std::string& line, std::thread& search_thread) {
             wasm_thread_time_for_move = (depth_idx == std::string::npos) ? time_for_move : -1;
             wasm_search_ready = true;
         }
-        wasm_search_cv.notify_one();
 #else
         search_thread = std::thread([=]() {
             BoardState thread_pos;
