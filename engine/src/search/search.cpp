@@ -26,6 +26,8 @@ namespace Search {
     std::chrono::time_point<std::chrono::steady_clock> search_end_time;
     bool time_managed = false;
     
+    std::atomic<long long> nodes(0);
+    
     inline bool is_stopped() {
         if (stopped || (thread_search_id != 0 && thread_search_id != search_id.load(std::memory_order_relaxed))) return true;
         if (time_managed && (nodes.load(std::memory_order_relaxed) & 2047) == 0) {
@@ -36,8 +38,7 @@ namespace Search {
         }
         return false;
     }
-    
-    std::atomic<long long> nodes(0);
+
 
     std::atomic<int> history_table[2][64][64];
     std::atomic<Move> killer_moves[2][100];

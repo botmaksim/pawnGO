@@ -116,14 +116,15 @@ function App() {
           }
           if (cmd.startsWith('go ') && wsRef.current.isTablebasePending) {
               const fen = wsRef.current.isTablebasePending;
-              fetch(`/api/tablebase?fen=${encodeURIComponent(fen)}`)
+              fetch(`https://tablebase.lichess.ovh/standard?fen=${encodeURIComponent(fen)}`)
                   .then(res => res.json())
                   .then(data => {
-                      if (data.bestmove) {
+                      if (data.moves && data.moves.length > 0) {
+                          const bestmove = data.moves[0].uci;
                           // Inject tablebase move
                           if (wsRef.current.onmessage) {
-                              wsRef.current.onmessage({ data: `info depth 64 score cp 19999 pv ${data.bestmove}` });
-                              wsRef.current.onmessage({ data: `bestmove ${data.bestmove}` });
+                              wsRef.current.onmessage({ data: `info depth 64 score cp 19999 pv ${bestmove}` });
+                              wsRef.current.onmessage({ data: `bestmove ${bestmove}` });
                           }
                       } else {
                           // Fallback to Wasm
