@@ -719,7 +719,9 @@ namespace Search {
         }
 
         if (legal_moves.empty()) {
-            std::cout << "bestmove 0000" << std::endl;
+            if (current_search_id == -1 || current_search_id == search_id.load(std::memory_order_relaxed)) {
+                std::cout << "bestmove 0000" << std::endl;
+            }
             return;
         }
 
@@ -912,6 +914,9 @@ namespace Search {
         if (best_final_move == 0 && legal_moves.size() > 0) best_final_move = legal_moves[0].move;
 
         if (best_final_move != 0) {
+            if (current_search_id != -1 && current_search_id != search_id.load(std::memory_order_relaxed)) {
+                return; // Superseded by a newer search, do not print bestmove
+            }
             int src = GET_MOVE_SOURCE(best_final_move);
         int tgt = GET_MOVE_TARGET(best_final_move);
         int promoted = GET_MOVE_PROMOTED(best_final_move);

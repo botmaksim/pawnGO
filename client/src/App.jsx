@@ -104,7 +104,7 @@ function App() {
 
   useEffect(() => {
     // Web Worker for WebAssembly Engine
-    const worker = new Worker('wasm/engineWorker_v3.js?v=7');
+    const worker = new Worker('wasm/engineWorker_v3.js?v=8');
     
     // Simulate WebSocket API for existing code
     wsRef.current = {
@@ -150,6 +150,7 @@ function App() {
           if (cmd === 'stop' && wsRef.current.isTablebasePending) {
               return; // Nothing to stop on the server
           }
+          console.log("[Engine Send]:", cmd);
           worker.postMessage(cmd);
       },
       close: () => worker.terminate()
