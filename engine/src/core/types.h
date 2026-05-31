@@ -50,7 +50,7 @@ typedef uint32_t Move;
 #define GET_MOVE_CASTLING(move) ((move) & 0x800000)
 
 struct MoveList {
-    Move moves[256];
+    Move moves[512];
     int count;
 
     inline void add(Move move) {

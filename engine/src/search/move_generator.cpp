@@ -2,6 +2,7 @@
 
 namespace MoveGen {
     bool is_square_attacked(const BoardState& pos, int square, int side) {
+        if (square < 0 || square >= 64) return false;
         if (side == WHITE) {
             if (pawn_attacks[BLACK][square] & pos.pieceBB[P]) return true;
             if (knight_attacks[square] & pos.pieceBB[N]) return true;

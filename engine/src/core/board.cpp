@@ -240,10 +240,11 @@ namespace Board {
             Bitboard::set_bit(pos.pieceBB[piece], source);
             
             if (dp) {
-                dp->to[0] = 64; 
+                dp->to[0] = source; 
+                dp->from[0] = 64; // Pawn appears at source
                 dp->pc[dp->dirtyNum] = Evaluation::nnue_piece_map[promoted];
                 dp->from[dp->dirtyNum] = target; 
-                dp->to[dp->dirtyNum] = 64; 
+                dp->to[dp->dirtyNum] = 64; // Promoted piece vanishes
                 dp->dirtyNum++;
             }
         } else {

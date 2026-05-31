@@ -204,6 +204,8 @@ namespace Evaluation {
         pieces[1] = 7; // bking
         squares[1] = Bitboard::lsb(pos.pieceBB[k]);
 
+        if (squares[0] == -1 || squares[1] == -1) return evaluate(pos);
+
         bool need_full = true;
         if (ply == 0) {
             need_full = true;
@@ -272,6 +274,8 @@ namespace Evaluation {
             squares[0] = Bitboard::lsb(pos.pieceBB[K]);
             pieces[1] = 7; // bking
             squares[1] = Bitboard::lsb(pos.pieceBB[k]);
+
+            if (squares[0] == -1 || squares[1] == -1) return (pos.side == WHITE) ? mat_diff : -mat_diff;
 
             for (int p = P; p <= k; p++) {
                 if (p == K || p == k) continue;

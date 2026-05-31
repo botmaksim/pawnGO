@@ -41,7 +41,7 @@ namespace Search {
 
 
     std::atomic<int> history_table[2][64][64];
-    std::atomic<Move> killer_moves[2][100];
+    std::atomic<Move> killer_moves[2][200]; // MAX_PLY
     std::atomic<Move> counter_move[64][64];
 
     int LMR_table[64][64];
@@ -60,7 +60,7 @@ namespace Search {
 
     void clear_heuristics() {
         for (int i = 0; i < 2; i++) {
-            for (int j = 0; j < 100; j++) killer_moves[i][j] = 0;
+            for (int j = 0; j < 200; j++) killer_moves[i][j] = 0;
             for (int j = 0; j < 64; j++) {
                 for (int k = 0; k < 64; k++) history_table[i][j][k] = 0;
             }
@@ -107,7 +107,7 @@ namespace Search {
         }
         if (GET_MOVE_PROMOTED(move)) return 19000;
         
-        if (ply < 100) {
+        if (ply < 200) {
             if (killer_moves[0][ply] == move) return 18000;
             if (killer_moves[1][ply] == move) return 17000;
         }
@@ -132,7 +132,7 @@ namespace Search {
         bool in_check;
         
         MoveList move_list;
-        int scores[256];
+        int scores[512];
         int index;
         int stage; // 0: captures, 1: quiets, 2: done
 
@@ -462,7 +462,7 @@ namespace Search {
             if (score >= beta) {
                 TT::write_hash_entry(pos.hash_key, beta, depth, ply, hash_flag_beta, move);
                 if (is_quiet) {
-                    if (ply < 100) {
+                    if (ply < 200) {
                         killer_moves[1][ply].store(killer_moves[0][ply].load(std::memory_order_relaxed), std::memory_order_relaxed);
                         killer_moves[0][ply] = move;
                     }
