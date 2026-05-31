@@ -320,7 +320,7 @@ function App() {
 
 
   useEffect(() => {
-    if (engineReady && wsRef.current && wsRef.current.readyState === 1) {
+    if (engineReady && wsRef.current && wsRef.current.readyState === 1 && !isEngineSearchingRef.current) {
        wsRef.current.send(`setoption name MultiPV value ${multiPvCount}`);
        requestAnalysis(currentFenRef.current);
     }

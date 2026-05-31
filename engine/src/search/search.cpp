@@ -813,70 +813,45 @@ namespace Search {
                 Move book_move = 0;
                 if (pv_idx < current_book_moves.size()) {
                     is_book_slot = true;
-                    // Find the book move that hasn't been excluded yet
-                    for (auto& rm : legal_moves) {
-                        bool found = false;
-                        for (auto& bm : current_book_moves) {
-                            if (bm == rm.move) { found = true; break; }
-                        }
-                        if (found && std::find(excluded_moves.begin(), excluded_moves.end(), rm.move) == excluded_moves.end()) {
-                            book_move = rm.move;
-                            break;
-                        }
-                    }
                 }
 
-                if (is_book_slot && book_move != 0) {
-                    Board::UndoInfo undo;
-                    Evaluation::nnue_stack[1].accumulator.computedAccumulation = 0;
-                    if (Board::make_move(pos, book_move, 0, &undo, &Evaluation::nnue_stack[1].dirtyPiece)) {
-                        best_score = -alpha_beta(pos, current_depth - 1, -32000, 32000, 1, false, book_move);
-                        Board::unmake_move(pos, book_move, undo);
-                    } else {
-                        best_score = 0;
-                    }
-                    best_move_this_iteration = book_move;
-                    
-                    // Update the score in legal_moves so sorting works properly next iteration
-                    for (auto& rm : legal_moves) {
-                        if (rm.move == book_move) {
-                            rm.score = best_score;
-                            break;
-                        }
-                    }
-                } else {
-                    while (true) {
-                        best_score = -32000;
-                        best_move_this_iteration = 0;
-                        int current_alpha = alpha;
+                while (true) {
+                    best_score = -32000;
+                    best_move_this_iteration = 0;
+                    int current_alpha = alpha;
 
-                        for (auto& rm : legal_moves) {
-                            Move move = rm.move;
-                            if (std::find(excluded_moves.begin(), excluded_moves.end(), move) != excluded_moves.end()) continue;
-                            
-                            Board::UndoInfo undo;
+                    for (auto& rm : legal_moves) {
+                        Move move = rm.move;
+                        if (std::find(excluded_moves.begin(), excluded_moves.end(), move) != excluded_moves.end()) continue;
+                        
+                        Board::UndoInfo undo;
+                        if (Evaluation::use_nnue) {
                             Evaluation::nnue_stack[1].accumulator.computedAccumulation = 0;
-                            if (!Board::make_move(pos, move, 0, &undo, &Evaluation::nnue_stack[1].dirtyPiece)) {
-                                continue;
-                            }
-                            int score = -alpha_beta(pos, current_depth - 1, -beta, -current_alpha, 1, false, move);
-                            Board::unmake_move(pos, move, undo);
-                            
-                            if (is_stopped()) break;
-                            
-                            if (pv_idx == 0) rm.score = score;
-                            
-                            if (score > best_score) {
-                                best_score = score;
-                                best_move_this_iteration = move;
-                            }
-                            if (score > current_alpha) {
-                                current_alpha = score;
-                            }
                         }
+                        if (!Board::make_move(pos, move, 0, &undo, Evaluation::use_nnue ? &Evaluation::nnue_stack[1].dirtyPiece : nullptr)) {
+                            continue;
+                        }
+
+                        nodes++;
+                        int score = -alpha_beta(pos, current_depth - 1, -beta, -current_alpha, 1, false, move);
+                        Board::unmake_move(pos, move, undo);
                         
                         if (is_stopped()) break;
                         
+                        if (pv_idx == 0) rm.score = score;
+                        
+                        if (score > best_score) {
+                            best_score = score;
+                            best_move_this_iteration = move;
+                        }
+                        if (score > current_alpha) {
+                            current_alpha = score;
+                        }
+                    }
+                    
+                    if (is_stopped()) break;
+                    
+                    if (current_depth >= 4 && pv_idx == 0) {
                         if (best_score <= alpha && alpha != -32000) {
                             alpha = -32000;
                             continue;
@@ -887,6 +862,7 @@ namespace Search {
                         }
                         break;
                     }
+                    break;
                 }
                 
                 if (is_stopped()) break;
