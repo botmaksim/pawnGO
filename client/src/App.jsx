@@ -73,13 +73,7 @@ function App() {
       const currentTurn = game.turn();
       if ((playMode === 'Play as White' && currentTurn === 'b') ||
           (playMode === 'Play as Black' && currentTurn === 'w')) {
-          if (wsRef.current && wsRef.current.readyState === 1) {
-              wsRef.current.send('stop');
-              setTimeout(() => {
-                  wsRef.current.send(`position fen ${game.fen()}`);
-                  wsRef.current.send(`go depth ${analysisDepth}`);
-              }, 50);
-          }
+          requestAnalysis(game.fen());
       }
     }
   }, [playMode, game, isSetupMode, analysisDepth]);

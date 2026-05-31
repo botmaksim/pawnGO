@@ -670,6 +670,10 @@ namespace Search {
     void search_position(BoardState& pos, int depth, int current_search_id) {
         std::lock_guard<std::mutex> main_lock(main_search_mtx);
 
+        if (current_search_id != -1 && current_search_id != search_id.load(std::memory_order_relaxed)) {
+            return; // Superseded before it even started!
+        }
+
         // We do NOT parse current_fen here, because main.cpp already sets up the board and applies moves!
         clear_heuristics();
         
