@@ -696,6 +696,9 @@ namespace Search {
         
         max_depth = depth;
         stopped = false;
+        if (current_search_id != -1) {
+            search_id.store(current_search_id, std::memory_order_relaxed);
+        }
         nodes = 0;
         
         Evaluation::allocate_nnue_stack();
