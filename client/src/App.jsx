@@ -561,8 +561,8 @@ function App() {
   
   // Disable drag if it's engine's turn
   const isEngineTurn = !isSetupMode && (
-    (playMode === 'Play as White' && game.turn() === 'w') ||
-    (playMode === 'Play as Black' && game.turn() === 'b')
+    (playMode === 'Play as White' && game.turn() === 'b') ||
+    (playMode === 'Play as Black' && game.turn() === 'w')
   );
 
   function triggerError() {
