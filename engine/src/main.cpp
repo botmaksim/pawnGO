@@ -385,6 +385,9 @@ void execute_uci_command(const std::string& line, std::thread& search_thread) {
         size_t val_idx = line.find("value ");
         if (val_idx != std::string::npos) {
             int threads = std::stoi(line.substr(val_idx + 6));
+#ifdef __EMSCRIPTEN__
+            threads = 1; // Lazy SMP is buggy in Emscripten Wasm
+#endif
             Search::init_threads(threads);
             log("Threads set to " + std::to_string(threads));
         }
@@ -641,7 +644,11 @@ int main() {
         log("Syzygy Tablebases automatically initialized from ../3-4-5 (Max pieces: " + std::to_string(TB_LARGEST) + ")");
     }
 
+#ifdef __EMSCRIPTEN__
+    Search::init_threads(1);
+#else
     Search::init_threads(4);
+#endif
 
 #ifdef __EMSCRIPTEN__
     // Do nothing here, Wasm engine is waiting for execute_uci_command

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
+    "lint": "cd ../pawnGO/engine && docker build -f Dockerfile.wasm -t pawngo-wasm . && docker create --name temp-container pawngo-wasm && docker cp temp-container:/app/build_wasm/pawngo_wasm.js ../client/public/wasm/pawngo_wasm.js && docker cp temp-container:/app/build_wasm/pawngo_wasm.wasm ../client/public/wasm/pawngo_wasm.wasm && docker cp temp-container:/app/build_wasm/pawngo_wasm.data ../client/public/wasm/pawngo_wasm.data && docker rm temp-container",
     "preview": "vite preview",
     "test-engine": "cd public/wasm && node test_engine.cjs"
   },
