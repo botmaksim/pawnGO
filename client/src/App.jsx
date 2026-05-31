@@ -65,18 +65,25 @@ function App() {
   const turnColor = game.turn() === 'w' ? 'White' : 'Black';
 
   const playModeRef = useRef(playMode);
+  const isBotTurnSearchRef = useRef(false);
+  const prevPlayModeRef = useRef(playMode);
   useEffect(() => { 
     playModeRef.current = playMode; 
     
     // If we just switched to playing as the side whose turn it is, force the engine to think!
     if (playMode !== 'Analysis' && !isSetupMode) {
-      const currentTurn = game.turn();
-      if ((playMode === 'Play as White' && currentTurn === 'b') ||
-          (playMode === 'Play as Black' && currentTurn === 'w')) {
-          requestAnalysis(game.fen());
+      if (prevPlayModeRef.current !== playMode) {
+          const tempGame = new Chess();
+          tempGame.load(currentFen);
+          const currentTurn = tempGame.turn();
+          if ((playMode === 'Play as White' && currentTurn === 'b') ||
+              (playMode === 'Play as Black' && currentTurn === 'w')) {
+              requestAnalysis(currentFen);
+          }
       }
     }
-  }, [playMode, game, isSetupMode, analysisDepth]);
+    prevPlayModeRef.current = playMode;
+  }, [playMode, currentFen, isSetupMode]);
   const [pendingEngineMove, setPendingEngineMove] = useState(null);
 
 
@@ -277,6 +284,7 @@ function App() {
             setPvLines({});
             
             isEngineSearchingRef.current = true;
+            isBotTurnSearchRef.current = isBotTurn;
             wsRef.current.send(`position fen ${fen}`);
             if (isBotTurn) {
                 wsRef.current.send(`go movetime 3000`);
@@ -298,11 +306,7 @@ function App() {
         } else if (!isAnalyzingGameRef.current && playModeRef.current !== 'Analysis') {
           // Play against engine mode
           try {
-              const tempGame = new Chess();
-              tempGame.load(currentFenRef.current);
-              const turn = tempGame.turn(); // 'w' or 'b'
-              if ((playModeRef.current === 'Play as White' && turn === 'b') ||
-                  (playModeRef.current === 'Play as Black' && turn === 'w')) {
+              if (isBotTurnSearchRef.current) {
                   const bestmove = msg.split(' ')[1];
                   if (bestmove && bestmove !== '(none)') {
                       setPendingEngineMove(bestmove);
@@ -404,6 +408,7 @@ function App() {
         setPvLines({});
         isEngineSearchingRef.current = true;
         ignoringStaleInfoRef.current = false;
+        isBotTurnSearchRef.current = isBotTurn;
         wsRef.current.send(`position fen ${fen}`);
         if (isBotTurn) {
             wsRef.current.send(`go movetime 3000`);
