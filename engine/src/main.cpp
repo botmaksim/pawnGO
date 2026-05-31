@@ -246,9 +246,8 @@ void uciLoop() {
             // Reset stopped flag before launching!
             Search::stopped = false;
             
-            static int search_id = 0;
-            search_id++;
-            int current_search_id = search_id;
+            Search::search_id.fetch_add(1, std::memory_order_relaxed);
+            int current_search_id = Search::search_id.load(std::memory_order_relaxed);
 
             // Capture the current main thread's board state
             std::array<U64, 12> t_pieceBB;
@@ -277,7 +276,7 @@ void uciLoop() {
                 // Time-based search
                 std::thread timer_thread([time_for_move, current_search_id]() {
                     std::this_thread::sleep_for(std::chrono::milliseconds(time_for_move));
-                    if (search_id == current_search_id) {
+                    if (Search::search_id.load(std::memory_order_relaxed) == current_search_id) {
                         Search::stopped = true;
                     }
                 });
@@ -512,9 +511,8 @@ void execute_uci_command(const std::string& line, std::thread& search_thread) {
         // Reset stopped flag before launching!
         Search::stopped = false;
         
-        static int search_id = 0;
-        search_id++;
-        int current_search_id = search_id;
+        Search::search_id.fetch_add(1, std::memory_order_relaxed);
+        int current_search_id = Search::search_id.load(std::memory_order_relaxed);
 
         // Capture the current main thread's board state
         std::array<U64, 12> t_pieceBB;
@@ -543,7 +541,7 @@ void execute_uci_command(const std::string& line, std::thread& search_thread) {
             // Time-based search
             std::thread timer_thread([time_for_move, current_search_id]() {
                 std::this_thread::sleep_for(std::chrono::milliseconds(time_for_move));
-                if (search_id == current_search_id) {
+                if (Search::search_id.load(std::memory_order_relaxed) == current_search_id) {
                     Search::stopped = true;
                 }
             });

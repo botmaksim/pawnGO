@@ -1086,7 +1086,7 @@ function App() {
           alignItems: 'center', justifyContent: 'center', zIndex: 10000, color: 'white'
         }}>
           <h2>Downloading Engine...</h2>
-          <p style={{ color: '#aaa', marginTop: '10px' }}>Loading WebAssembly components (approx. 3 MB)</p>
+          <p style={{ color: '#aaa', marginTop: '10px' }}>Loading WebAssembly components (approx. 21 MB)</p>
           <div className="spinner" style={{ 
             marginTop: '20px', width: '40px', height: '40px', 
             border: '4px solid rgba(255,255,255,0.2)', 
