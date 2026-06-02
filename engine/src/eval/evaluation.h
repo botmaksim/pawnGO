@@ -12,7 +12,7 @@ namespace Evaluation {
     extern const int nnue_piece_map[16];
     extern bool use_nnue;
     
-    const int MAX_PLY = 200;
+    const int MAX_PLY = 512;
     extern thread_local NNUEdata* nnue_stack;
     void allocate_nnue_stack();
     int evaluate_incremental(const BoardState& pos, int ply);

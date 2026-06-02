@@ -541,8 +541,11 @@ void execute_uci_command(const std::string& line, std::thread& search_thread) {
         size_t btime_idx = line.find("btime ");
         size_t winc_idx = line.find("winc ");
         size_t binc_idx = line.find("binc ");
+        size_t movetime_idx = line.find("movetime ");
         
-        if (wtime_idx != std::string::npos && btime_idx != std::string::npos) {
+        if (movetime_idx != std::string::npos) {
+            time_for_move = std::stoll(line.substr(movetime_idx + 9));
+        } else if (wtime_idx != std::string::npos && btime_idx != std::string::npos) {
             long long wtime = std::stoll(line.substr(wtime_idx + 6));
             long long btime = std::stoll(line.substr(btime_idx + 6));
             long long winc = (winc_idx != std::string::npos) ? std::stoll(line.substr(winc_idx + 5)) : 0;

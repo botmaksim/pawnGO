@@ -104,77 +104,83 @@ function App() {
   }, [pendingEngineMove]);
 
   useEffect(() => {
-    // Web Worker for WebAssembly Engine
-    const worker = new Worker('wasm/engineWorker_v3.js?v=8');
-    
-    // Simulate WebSocket API for existing code
-    wsRef.current = {
-      readyState: 1, // OPEN
-      isTablebasePending: null,
-      send: (cmd) => {
-          if (cmd.startsWith('position fen ')) {
-              const fen = cmd.substring('position fen '.length);
-              const pieceCount = fen.split(' ')[0].replace(/[^a-zA-Z]/g, '').length;
-              if (pieceCount <= 5) {
-                  wsRef.current.isTablebasePending = fen;
-                  return; // Hold the command
-              }
-              wsRef.current.isTablebasePending = null;
-          }
-          if (cmd.startsWith('go ') && wsRef.current.isTablebasePending) {
-              const fen = wsRef.current.isTablebasePending;
-              fetch(`https://tablebase.lichess.ovh/standard?fen=${encodeURIComponent(fen)}`)
-                  .then(res => res.json())
-                  .then(data => {
-                      if (data.moves && data.moves.length > 0) {
-                          const bestmove = data.moves[0].uci;
-                          // Inject tablebase move
-                          if (wsRef.current.onmessage) {
-                              wsRef.current.onmessage({ data: `info depth 64 score cp 19999 pv ${bestmove}` });
-                              wsRef.current.onmessage({ data: `bestmove ${bestmove}` });
-                          }
-                          wsRef.current.isTablebasePending = null;
-                      } else {
-                          // Fallback to Wasm
-                          wsRef.current.isTablebasePending = null;
-                          worker.postMessage(`position fen ${fen}`);
-                          worker.postMessage(cmd);
-                      }
-                  })
-                  .catch(err => {
-                      console.error('Tablebase error', err);
-                      // Fallback to Wasm
-                      wsRef.current.isTablebasePending = null;
-                      worker.postMessage(`position fen ${fen}`);
-                      worker.postMessage(cmd);
-                  });
-              return;
-          }
-          if (cmd === 'stop' && wsRef.current.isTablebasePending) {
-              return; // Nothing to stop on the server
-          }
-          console.log("[Engine Send]:", cmd);
-          worker.postMessage(cmd);
-      },
-      close: () => worker.terminate()
+    let worker;
+    const initWorker = () => {
+      worker = new Worker('wasm/engineWorker_v3.js?v=8');
+      
+      worker.onerror = (err) => {
+        console.error("Worker error, restarting...", err);
+        worker.terminate();
+        setEngineReady(false);
+        isEngineSearchingRef.current = false; // Reset so analysis restarts
+        setTimeout(initWorker, 500); // Give it a short delay
+      };
+
+      // Simulate WebSocket API for existing code
+      wsRef.current = {
+        readyState: 1, // OPEN
+        isTablebasePending: null,
+        send: (cmd) => {
+            if (cmd.startsWith('position fen ')) {
+                const fen = cmd.substring('position fen '.length);
+                const pieceCount = fen.split(' ')[0].replace(/[^a-zA-Z]/g, '').length;
+                if (pieceCount <= 5) {
+                    wsRef.current.isTablebasePending = fen;
+                    return; // Hold the command
+                }
+                wsRef.current.isTablebasePending = null;
+            }
+            if (cmd.startsWith('go ') && wsRef.current.isTablebasePending) {
+                const fen = wsRef.current.isTablebasePending;
+                fetch(`https://tablebase.lichess.ovh/standard?fen=${encodeURIComponent(fen)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.moves && data.moves.length > 0) {
+                            const bestmove = data.moves[0].uci;
+                            if (wsRef.current.onmessage) {
+                                wsRef.current.onmessage({ data: `info depth 64 score cp 19999 pv ${bestmove}` });
+                                wsRef.current.onmessage({ data: `bestmove ${bestmove}` });
+                            }
+                            wsRef.current.isTablebasePending = null;
+                        } else {
+                            wsRef.current.isTablebasePending = null;
+                            worker.postMessage(`position fen ${fen}`);
+                            worker.postMessage(cmd);
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Tablebase error', err);
+                        wsRef.current.isTablebasePending = null;
+                        worker.postMessage(`position fen ${fen}`);
+                        worker.postMessage(cmd);
+                    });
+                return;
+            }
+            if (cmd === 'stop' && wsRef.current.isTablebasePending) {
+                return; // Nothing to stop on the server
+            }
+            console.log("[Engine Send]:", cmd);
+            worker.postMessage(cmd);
+        },
+        close: () => worker.terminate()
+      };
+
+      worker.onmessage = (event) => {
+        const msg = event.data;
+        if (msg === 'isready') {
+            console.log('Engine is ready (Wasm)');
+            setEngineReady(true);
+            wsRef.current.send('uci');
+            return;
+        }
+        
+        if (wsRef.current.onmessage) {
+            wsRef.current.onmessage({ data: msg });
+        }
+      };
     };
 
-    worker.onmessage = (event) => {
-      const msg = event.data;
-      if (msg === 'isready') {
-          console.log('Engine is ready (Wasm)');
-          setEngineReady(true);
-          // Send initial setup
-          wsRef.current.send('uci');
-          // Engine will start analyzing via the [multiPvCount, engineReady] useEffect 
-          return;
-      }
-      
-      // Pass the message to the existing handler
-      if (wsRef.current.onmessage) {
-          wsRef.current.onmessage({ data: msg });
-      }
-    };
+    initWorker();
 
     wsRef.current.onmessage = (event) => {
       const msg = event.data;
