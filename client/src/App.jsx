@@ -968,6 +968,8 @@ function App() {
               {isSetupMode ? 'Cancel Setup' : 'Setup Mode'}
             </button>
           </div>
+          <p>please don't use private mode</p>
+
           <p>Status: {wsRef.current && wsRef.current.readyState === WebSocket.OPEN ? 'Connected' : 'Connecting...'}</p>
           
           <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem', padding: '0.5rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
