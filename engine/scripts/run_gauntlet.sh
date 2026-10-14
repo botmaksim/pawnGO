@@ -49,13 +49,19 @@ if [ -f "$SCRIPT_DIR/openings.pgn" ]; then
     OPENING_ARG=(-openings file="$SCRIPT_DIR/openings.pgn" format=pgn order=random)
 fi
 
+TB_ADJUDICATION=()
+if [ -d "/home/maksim/CV/pawnGO/engine/3-4-5" ]; then
+    TB_ADJUDICATION=(-tb /home/maksim/CV/pawnGO/engine/3-4-5 -tbpieces 5)
+fi
+
 $CUTECHESS_CLI \
     -engine name=pawnGO cmd="$PAWNGO_CMD" dir="$PAWNGO_DIR" option.MultiPV=1 "${SYZYGY_OPTS[@]}" \
     "${SF_ENGINE_ARGS[@]}" \
     -each proto=uci tc=$TC \
     "${OPENING_ARG[@]}" \
+    "${TB_ADJUDICATION[@]}" \
     -draw movenumber=40 movecount=6 score=10 \
-    -resign movecount=4 score=700 \
+    -resign movecount=4 score=600 twosided=true \
     -ratinginterval 1 \
     -games 2 -rounds $ROUNDS -concurrency $CONCURRENCY \
     -pgnout "$GAMES_DIR/match.pgn" \
@@ -63,3 +69,9 @@ $CUTECHESS_CLI \
 
 echo "==========================================================" | tee -a "$LOG_FILE"
 echo "Tournament Completed! Games saved to $GAMES_DIR/match.pgn" | tee -a "$LOG_FILE"
+echo "Invoking Full Stockfish 17.1 Referee for match verification..." | tee -a "$LOG_FILE"
+echo "==========================================================" | tee -a "$LOG_FILE"
+
+if [ -f "$GAMES_DIR/match.pgn" ]; then
+    python3 "$SCRIPT_DIR/referee_stockfish.py" "$GAMES_DIR/match.pgn" 12 2>&1 | tee -a "$LOG_FILE"
+fi
