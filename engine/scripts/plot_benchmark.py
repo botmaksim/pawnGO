@@ -21,7 +21,7 @@ ASSETS_DIR = os.path.join(PROJECT_DIR, "assets")
 
 os.makedirs(ASSETS_DIR, exist_ok=True)
 
-LEVELS = [2400, 2500, 2600, 2700, 2800, 2900, 3000, 3100, 3200, 3300, 3400, 3500, 3600]
+LEVELS = [2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000, 3100, 3200, 3300, 3400, 3500, 3600]
 
 def set_dark_theme(ax):
     ax.set_facecolor("#161b22")

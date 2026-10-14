@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Generate publication-quality advanced analytics charts for pawnGO README:
-1. assets/benchmark_game_phases.png - Tactical Middlegame Dominance vs Late Endgame Grind
-2. assets/benchmark_openings.png - Performance Across Major Opening Repertoires
+1. assets/benchmark_game_phases.png - Score by Game Length & Distribution
+2. assets/benchmark_openings.png - Opening Performance Across Opponent Rating Levels
 """
 
 import os
@@ -24,6 +24,7 @@ def set_dark_theme(ax):
     ax.grid(color="#30363d", linestyle="--", linewidth=0.7, alpha=0.7)
     for spine in ax.spines.values():
         spine.set_color("#30363d")
+
 def normalize_opening(op):
     low = op.lower().strip()
     if "sicilian" in low:
@@ -77,15 +78,44 @@ def generate_advanced_charts():
     draw_lengths = []
 
     phase_bins = {
-        "<35 moves\n(Opening / Early Mid)": [0, 0, 0],
-        "35-50 moves\n(Tactical Middlegame)": [0, 0, 0],
-        "50-70 moves\n(Early Endgame)": [0, 0, 0],
-        ">70 moves\n(Deep Technical Grind)": [0, 0, 0]
+        "< 35 moves": [0, 0, 0],
+        "35–50 moves": [0, 0, 0],
+        "50–70 moves": [0, 0, 0],
+        "> 70 moves": [0, 0, 0]
     }
+
+    # Opening tracking across 3 broad tiers and 5 granular brackets
+    tiers = ["2200–2600", "2700–3100", "3200–3600"]
+    brackets = ["2200–2400", "2500–2700", "2800–3000", "3100–3300", "3400–3600"]
+
+    def get_tier(lvl):
+        if lvl <= 2600:
+            return "2200–2600"
+        if lvl <= 3100:
+            return "2700–3100"
+        return "3200–3600"
+
+    def get_bracket(lvl):
+        if lvl <= 2400:
+            return "2200–2400"
+        if lvl <= 2700:
+            return "2500–2700"
+        if lvl <= 3000:
+            return "2800–3000"
+        if lvl <= 3300:
+            return "3100–3300"
+        return "3400–3600"
 
     openings_data = {}
 
     for f in pgn_files:
+        m = re.search(r"(\d{4})", os.path.basename(f))
+        if not m:
+            continue
+        lvl = int(m.group(1))
+        t_key = get_tier(lvl)
+        b_key = get_bracket(lvl)
+
         with open(f, "r", encoding="utf-8", errors="ignore") as fp:
             content = fp.read()
         games = content.split("[Event ")
@@ -116,55 +146,63 @@ def generate_advanced_charts():
                 draw_lengths.append(moves)
 
             if moves < 35:
-                b_key = "<35 moves\n(Opening / Early Mid)"
+                phase_key = "< 35 moves"
             elif moves <= 50:
-                b_key = "35-50 moves\n(Tactical Middlegame)"
+                phase_key = "35–50 moves"
             elif moves <= 70:
-                b_key = "50-70 moves\n(Early Endgame)"
+                phase_key = "50–70 moves"
             else:
-                b_key = ">70 moves\n(Deep Technical Grind)"
+                phase_key = "> 70 moves"
 
             if is_win:
-                phase_bins[b_key][0] += 1
+                phase_bins[phase_key][0] += 1
             elif is_loss:
-                phase_bins[b_key][1] += 1
+                phase_bins[phase_key][1] += 1
             elif is_draw:
-                phase_bins[b_key][2] += 1
+                phase_bins[phase_key][2] += 1
 
             op_m = re.search(r'\[Opening "([^"]+)"\]', g)
             if op_m:
                 op_raw = normalize_opening(op_m.group(1).split(",")[0])
                 if op_raw not in openings_data:
-                    openings_data[op_raw] = [0, 0, 0]
+                    openings_data[op_raw] = {
+                        "total": [0, 0, 0],
+                        "tiers": {t: [0, 0, 0] for t in tiers},
+                        "brackets": {b: [0, 0, 0] for b in brackets}
+                    }
                 if is_win:
-                    openings_data[op_raw][0] += 1
+                    openings_data[op_raw]["total"][0] += 1
+                    openings_data[op_raw]["tiers"][t_key][0] += 1
+                    openings_data[op_raw]["brackets"][b_key][0] += 1
                 elif is_loss:
-                    openings_data[op_raw][1] += 1
+                    openings_data[op_raw]["total"][1] += 1
+                    openings_data[op_raw]["tiers"][t_key][1] += 1
+                    openings_data[op_raw]["brackets"][b_key][1] += 1
                 elif is_draw:
-                    openings_data[op_raw][2] += 1
+                    openings_data[op_raw]["total"][2] += 1
+                    openings_data[op_raw]["tiers"][t_key][2] += 1
+                    openings_data[op_raw]["brackets"][b_key][2] += 1
 
     plt.style.use("dark_background")
 
     # =========================================================================
-    # 1. GAME PHASE DOMINANCE VS ENDGAME CONVERSION (benchmark_game_phases.png)
+    # 1. GAME LENGTH & PHASE ANALYSIS (benchmark_game_phases.png)
     # =========================================================================
-    fig1, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6.5), dpi=300, facecolor="#0d1117")
+    fig1, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6), dpi=300, facecolor="#0d1117")
     set_dark_theme(ax1)
     set_dark_theme(ax2)
 
     bin_labels = list(phase_bins.keys())
     bin_rates = []
-    bin_totals = []
     for k in bin_labels:
         w, l, d = phase_bins[k]
         tot = w + l + d
         pct = round(((w + 0.5 * d) / tot) * 100, 1) if tot > 0 else 0
         bin_rates.append(pct)
-        bin_totals.append(tot)
 
     x_bins = np.arange(len(bin_labels))
     colors = ["#2ea043" if r >= 60 else ("#58a6ff" if r >= 50 else "#f0883e") for r in bin_rates]
-    bars = ax1.bar(x_bins, bin_rates, 0.55, color=colors, edgecolor="#30363d")
+    ax1.bar(x_bins, bin_rates, 0.52, color=colors, edgecolor="#30363d")
     ax1.axhline(50, color="#f85149", linestyle=":", linewidth=2, alpha=0.9, label="50% Parity Line")
 
     for i, r in enumerate(bin_rates):
@@ -172,29 +210,34 @@ def generate_advanced_charts():
         ax1.annotate(f"{r}%\n(+{w} -{l} ={d})", (x_bins[i], r + 3),
                      ha="center", fontsize=9.5, fontweight="bold", color="#ffffff")
 
-    ax1.set_title("pawnGO Win Rate by Game Phase / Duration", fontsize=13, fontweight="bold", color="#f0f6fc", pad=12)
-    ax1.set_xlabel("Game Phase Bracket", fontsize=11, fontweight="bold", color="#c9d1d9", labelpad=8)
-    ax1.set_ylabel("Win Rate (%)", fontsize=11, fontweight="bold", color="#c9d1d9", labelpad=8)
+    ax1.set_title("Score by Game Length Bracket", fontsize=12, fontweight="bold", color="#f0f6fc", pad=10)
+    ax1.set_xlabel("Game Length", fontsize=10.5, fontweight="bold", color="#c9d1d9", labelpad=8)
+    ax1.set_ylabel("Score (%)", fontsize=10.5, fontweight="bold", color="#c9d1d9", labelpad=8)
     ax1.set_xticks(x_bins)
     ax1.set_xticklabels(bin_labels, fontsize=9.5)
     ax1.set_ylim(0, 105)
-    ax1.legend(loc="upper right", facecolor="#161b22", edgecolor="#30363d", fontsize=9.5, labelcolor="#c9d1d9")
+    ax1.legend(loc="upper right", facecolor="#161b22", edgecolor="#30363d", fontsize=9, labelcolor="#c9d1d9")
 
-    # Panel B: Histogram / Distribution of Wins vs Losses
+    # Panel B: Histogram of Wins vs Losses
     max_m = 110
     bins_hist = np.linspace(10, max_m, 25)
-    ax2.hist(win_lengths, bins=bins_hist, alpha=0.65, color="#2ea043", label=f"Wins (Median: {np.median(win_lengths):.0f} moves)", edgecolor="#161b22", density=True)
-    ax2.hist(loss_lengths, bins=bins_hist, alpha=0.6, color="#da3633", label=f"Losses (Median: {np.median(loss_lengths):.0f} moves)", edgecolor="#161b22", density=True)
+    med_w = np.median(win_lengths) if win_lengths else 0
+    med_l = np.median(loss_lengths) if loss_lengths else 0
+    mean_w = np.mean(win_lengths) if win_lengths else 0
+    mean_l = np.mean(loss_lengths) if loss_lengths else 0
 
-    ax2.axvline(np.mean(win_lengths), color="#3fb950", linestyle="--", linewidth=2, label=f"Mean Win: {np.mean(win_lengths):.1f}m")
-    ax2.axvline(np.mean(loss_lengths), color="#f85149", linestyle="--", linewidth=2, label=f"Mean Loss: {np.mean(loss_lengths):.1f}m")
+    ax2.hist(win_lengths, bins=bins_hist, alpha=0.65, color="#2ea043", label=f"Wins (Median: {med_w:.0f}m)", edgecolor="#161b22", density=True)
+    ax2.hist(loss_lengths, bins=bins_hist, alpha=0.6, color="#da3633", label=f"Losses (Median: {med_l:.0f}m)", edgecolor="#161b22", density=True)
 
-    ax2.set_title("Conversion Velocity: Tactical Knockouts vs Endgame Grinds", fontsize=13, fontweight="bold", color="#f0f6fc", pad=12)
-    ax2.set_xlabel("Game Length (Moves)", fontsize=11, fontweight="bold", color="#c9d1d9", labelpad=8)
-    ax2.set_ylabel("Normalized Game Frequency Density", fontsize=11, fontweight="bold", color="#c9d1d9", labelpad=8)
-    ax2.legend(loc="upper right", facecolor="#161b22", edgecolor="#30363d", fontsize=9.5, labelcolor="#c9d1d9")
+    ax2.axvline(mean_w, color="#3fb950", linestyle="--", linewidth=2, label=f"Mean Win: {mean_w:.1f}m")
+    ax2.axvline(mean_l, color="#f85149", linestyle="--", linewidth=2, label=f"Mean Loss: {mean_l:.1f}m")
 
-    fig1.suptitle("pawnGO Phase Analysis: Tactical Middlegame Dominance vs Deep Technical Endgames", fontsize=16, fontweight="bold", color="#58a6ff", y=0.98)
+    ax2.set_title("Game Length Distribution (Wins vs Losses)", fontsize=12, fontweight="bold", color="#f0f6fc", pad=10)
+    ax2.set_xlabel("Game Length (Moves)", fontsize=10.5, fontweight="bold", color="#c9d1d9", labelpad=8)
+    ax2.set_ylabel("Frequency Density", fontsize=10.5, fontweight="bold", color="#c9d1d9", labelpad=8)
+    ax2.legend(loc="upper right", facecolor="#161b22", edgecolor="#30363d", fontsize=9, labelcolor="#c9d1d9")
+
+    fig1.suptitle("pawnGO Game Length and Phase Analysis", fontsize=15, fontweight="bold", color="#58a6ff", y=0.98)
     plt.tight_layout()
     plt.subplots_adjust(top=0.88)
     out1 = os.path.join(ASSETS_DIR, "benchmark_game_phases.png")
@@ -202,43 +245,96 @@ def generate_advanced_charts():
     plt.close(fig1)
 
     # =========================================================================
-    # 2. PERFORMANCE ACROSS MAJOR OPENINGS (benchmark_openings.png)
+    # 2. OPENING PERFORMANCE DISTRIBUTED BY RATING LEVELS (benchmark_openings.png)
     # =========================================================================
-    top_ops = sorted([k for k in openings_data.keys() if sum(openings_data[k]) >= 60],
-                     key=lambda k: sum(openings_data[k]), reverse=True)[:10]
+    top_ops = sorted(
+        [k for k in openings_data.keys() if sum(openings_data[k]["total"]) >= 70],
+        key=lambda k: sum(openings_data[k]["total"]),
+        reverse=True
+    )[:10]
 
     if top_ops:
-        fig2, ax = plt.subplots(figsize=(14, 7), dpi=300, facecolor="#0d1117")
-        set_dark_theme(ax)
+        fig2, (ax_bar, ax_heat) = plt.subplots(1, 2, figsize=(16, 7.5), dpi=300, facecolor="#0d1117", gridspec_kw={"width_ratios": [1.2, 1.0]})
+        set_dark_theme(ax_bar)
+        set_dark_theme(ax_heat)
 
-        op_rates = []
-        op_totals = []
-        for k in top_ops:
-            w, l, d = openings_data[k]
-            tot = w + l + d
-            pct = round(((w + 0.5 * d) / tot) * 100, 1)
-            op_rates.append(pct)
-            op_totals.append(tot)
-
+        # Left: Grouped horizontal bars across 3 Tiers
         y_pos = np.arange(len(top_ops))
-        bar_colors = ["#2ea043" if r >= 52 else ("#58a6ff" if r >= 48 else "#f0883e") for r in op_rates]
-        bars = ax.barh(y_pos, op_rates, 0.6, color=bar_colors, edgecolor="#30363d")
-        ax.axvline(50, color="#f85149", linestyle=":", linewidth=2, alpha=0.9, label="50% Parity Line")
+        bar_height = 0.25
 
-        for i, (r, tot) in enumerate(zip(op_rates, op_totals)):
-            w, l, d = openings_data[top_ops[i]]
-            ax.annotate(f" {r}%  (+{w} -{l} ={d}, {tot}G)", (r, y_pos[i]),
-                        va="center", fontsize=9.5, fontweight="bold", color="#ffffff")
+        t1_rates, t2_rates, t3_rates = [], [], []
+        for op in top_ops:
+            d = openings_data[op]["tiers"]
+            s1 = sum(d["2200–2600"])
+            r1 = (d["2200–2600"][0] + 0.5 * d["2200–2600"][2]) / s1 * 100 if s1 > 0 else 0
+            s2 = sum(d["2700–3100"])
+            r2 = (d["2700–3100"][0] + 0.5 * d["2700–3100"][2]) / s2 * 100 if s2 > 0 else 0
+            s3 = sum(d["3200–3600"])
+            r3 = (d["3200–3600"][0] + 0.5 * d["3200–3600"][2]) / s3 * 100 if s3 > 0 else 0
+            t1_rates.append(r1)
+            t2_rates.append(r2)
+            t3_rates.append(r3)
 
-        ax.set_yticks(y_pos)
-        ax.set_yticklabels(top_ops, fontsize=10.5, fontweight="bold")
-        ax.invert_yaxis()
-        ax.set_xlim(0, 100)
-        ax.set_xlabel("Win Rate (%)", fontsize=11, fontweight="bold", color="#c9d1d9", labelpad=8)
-        ax.set_title("pawnGO Performance Across Major Opening Repertoires (Min. 60 Games)", fontsize=14, fontweight="bold", color="#f0f6fc", pad=12)
-        ax.legend(loc="lower right", facecolor="#161b22", edgecolor="#30363d", fontsize=9.5, labelcolor="#c9d1d9")
+        b1 = ax_bar.barh(y_pos - bar_height, t1_rates, bar_height, label="vs SF 2200–2600", color="#2ea043", edgecolor="#30363d")
+        b2 = ax_bar.barh(y_pos, t2_rates, bar_height, label="vs SF 2700–3100", color="#58a6ff", edgecolor="#30363d")
+        b3 = ax_bar.barh(y_pos + bar_height, t3_rates, bar_height, label="vs SF 3200–3600", color="#f0883e", edgecolor="#30363d")
 
+        ax_bar.axvline(50, color="#f85149", linestyle=":", linewidth=2, alpha=0.9, label="50% Parity Line")
+
+        for i in range(len(top_ops)):
+            ax_bar.annotate(f"{t1_rates[i]:.0f}%", (t1_rates[i] + 1.5, y_pos[i] - bar_height), va="center", fontsize=8.5, color="#7ee787")
+            ax_bar.annotate(f"{t2_rates[i]:.0f}%", (t2_rates[i] + 1.5, y_pos[i]), va="center", fontsize=8.5, color="#79c0ff")
+            ax_bar.annotate(f"{t3_rates[i]:.0f}%", (t3_rates[i] + 1.5, y_pos[i] + bar_height), va="center", fontsize=8.5, color="#ffa657")
+
+        ax_bar.set_yticks(y_pos)
+        ax_bar.set_yticklabels(top_ops, fontsize=10, fontweight="bold")
+        ax_bar.invert_yaxis()
+        ax_bar.set_xlim(0, 115)
+        ax_bar.set_xlabel("Score (%)", fontsize=10.5, fontweight="bold", color="#c9d1d9", labelpad=8)
+        ax_bar.set_title("Performance by Opponent Rating Tier", fontsize=12, fontweight="bold", color="#f0f6fc", pad=32)
+        ax_bar.legend(bbox_to_anchor=(0.5, 1.03), loc="lower center", ncol=4,
+                      facecolor="#161b22", edgecolor="#30363d", fontsize=8.5, labelcolor="#c9d1d9")
+
+        # Right: Granular Heatmap matrix across 5 rating brackets
+        heat_matrix = np.zeros((len(top_ops), len(brackets)))
+        annot_matrix = []
+
+        for i, op in enumerate(top_ops):
+            row_ann = []
+            for j, b in enumerate(brackets):
+                b_res = openings_data[op]["brackets"][b]
+                b_tot = sum(b_res)
+                if b_tot > 0:
+                    pct = round(((b_res[0] + 0.5 * b_res[2]) / b_tot) * 100, 1)
+                else:
+                    pct = 0.0
+                heat_matrix[i, j] = pct
+                row_ann.append(f"{pct:.0f}%\n({b_tot}G)")
+            annot_matrix.append(row_ann)
+
+        im = ax_heat.imshow(heat_matrix, cmap="RdYlGn", vmin=10, vmax=95, aspect="auto")
+
+        ax_heat.set_xticks(np.arange(len(brackets)))
+        ax_heat.set_xticklabels(brackets, fontsize=9.5, fontweight="bold")
+        ax_heat.set_yticks(np.arange(len(top_ops)))
+        ax_heat.set_yticklabels([])  # Hide duplicate y-labels, shared with left plot
+        ax_heat.set_title("Score Matrix Across Rating Brackets", fontsize=12, fontweight="bold", color="#f0f6fc", pad=12)
+        ax_heat.set_xlabel("Opponent Elo Bracket", fontsize=10.5, fontweight="bold", color="#c9d1d9", labelpad=8)
+
+        for i in range(len(top_ops)):
+            for j in range(len(brackets)):
+                val = heat_matrix[i, j]
+                text_color = "#000000" if 40 <= val <= 75 else "#ffffff"
+                ax_heat.text(j, i, annot_matrix[i][j], ha="center", va="center",
+                             fontsize=8.5, fontweight="bold", color=text_color)
+
+        cbar = fig2.colorbar(im, ax=ax_heat, fraction=0.046, pad=0.04)
+        cbar.ax.set_ylabel("Score (%)", rotation=-90, va="bottom", fontsize=9.5, color="#c9d1d9")
+        cbar.ax.yaxis.set_tick_params(color="#c9d1d9", labelcolor="#c9d1d9")
+
+        fig2.suptitle("pawnGO Opening Repertoire Performance Across Rating Levels", fontsize=15, fontweight="bold", color="#58a6ff", y=0.98)
         plt.tight_layout()
+        plt.subplots_adjust(top=0.84)
         out2 = os.path.join(ASSETS_DIR, "benchmark_openings.png")
         fig2.savefig(out2, facecolor=fig2.get_facecolor(), edgecolor="none", bbox_inches="tight")
         plt.close(fig2)

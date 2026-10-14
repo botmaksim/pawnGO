@@ -13,19 +13,27 @@ import json
 import time
 import subprocess
 import multiprocessing
+import hashlib
 import chess
 import chess.pgn
 
 PROJECT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 BENCH_DIR = os.path.join(PROJECT_DIR, "engine/scripts/benchmarks")
 VERDICT_JSON = os.path.join(BENCH_DIR, "referee_verdict.json")
+CACHE_JSON = os.path.join(BENCH_DIR, "referee_cache.json")
 STOCKFISH_CMD = "stockfish"
 
-def analyze_single_game(game_text, depth=12):
+def analyze_single_game(arg, depth=10):
+    ghash = None
+    if isinstance(arg, tuple):
+        ghash, game_text, depth = arg
+    else:
+        game_text = arg
+
     import io
     game = chess.pgn.read_game(io.StringIO(game_text))
     if not game:
-        return None
+        return (ghash, None) if ghash else None
 
     white_player = game.headers.get("White", "")
     black_player = game.headers.get("Black", "")
@@ -136,19 +144,29 @@ def analyze_single_game(game_text, depth=12):
 
     sf_cmd("quit")
     sf.terminate()
-    return stats
+    return (ghash, stats) if ghash else stats
 
 def worker_init():
     pass
 
-def run_parallel_referee(depth=10, max_games_per_file=None):
+def run_parallel_referee(depth=10, max_games_per_file=None, workers=10):
     pgn_files = sorted(glob.glob(os.path.join(BENCH_DIR, "*.pgn")))
     if not pgn_files:
         print("No PGN files found to analyze.")
         return
 
     print(f"Collecting games from {len(pgn_files)} PGN files...")
-    all_games_text = []
+    cache = {}
+    if os.path.exists(CACHE_JSON):
+        try:
+            with open(CACHE_JSON, "r") as fp:
+                cache = json.load(fp)
+            print(f"Loaded {len(cache)} cached referee evaluations from {CACHE_JSON}")
+        except Exception as e:
+            print(f"Warning: could not read referee cache: {e}")
+
+    all_game_hashes = []
+    to_analyze = []
 
     for fpath in pgn_files:
         with open(fpath, "r", encoding="utf-8", errors="ignore") as fp:
@@ -158,34 +176,48 @@ def run_parallel_referee(depth=10, max_games_per_file=None):
         for p in parts:
             if not p.strip():
                 continue
-            all_games_text.append("[Event " + p)
+            gtxt = "[Event " + p
+            ghash = hashlib.sha256(gtxt.strip().encode("utf-8")).hexdigest()[:16]
+            all_game_hashes.append(ghash)
+            if ghash not in cache:
+                to_analyze.append((ghash, gtxt, depth))
             count += 1
             if max_games_per_file and count >= max_games_per_file:
                 break
 
-    total_games = len(all_games_text)
-    print(f"Total games to analyze: {total_games}. Starting 4 parallel workers (depth={depth})...")
+    total_games = len(all_game_hashes)
+    cached_count = total_games - len(to_analyze)
+    print(f"Total tournament games: {total_games}. Cached: {cached_count}, Remaining to analyze: {len(to_analyze)}.")
+
     start_time = time.time()
+    if to_analyze:
+        print(f"Starting {workers} parallel workers (depth={depth}) for {len(to_analyze)} games...")
+        pool = multiprocessing.Pool(processes=workers)
+        completed = 0
+        step = max(1, len(to_analyze) // 20)
 
-    pool = multiprocessing.Pool(processes=4)
-    
-    # Process with imap_unordered for progress reporting
-    results = []
-    completed = 0
-    step = max(1, total_games // 20)
+        for ghash, res in pool.imap_unordered(analyze_single_game, to_analyze, chunksize=2):
+            if res:
+                cache[ghash] = res
+            completed += 1
+            if completed % step == 0 or completed == len(to_analyze):
+                elapsed = time.time() - start_time
+                rate = completed / elapsed if elapsed > 0 else 0
+                pct = (completed / len(to_analyze)) * 100
+                print(f"[{pct:5.1f}%] Analyzed {completed}/{len(to_analyze)} new games ({rate:.1f} games/sec, elapsed {elapsed:.0f}s)")
 
-    for res in pool.imap_unordered(analyze_single_game, all_games_text, chunksize=2):
-        if res:
-            results.append(res)
-        completed += 1
-        if completed % step == 0 or completed == total_games:
-            elapsed = time.time() - start_time
-            rate = completed / elapsed if elapsed > 0 else 0
-            pct = (completed / total_games) * 100
-            print(f"[{pct:5.1f}%] Analyzed {completed}/{total_games} games ({rate:.1f} games/sec, elapsed {elapsed:.0f}s)")
+        pool.close()
+        pool.join()
 
-    pool.close()
-    pool.join()
+        try:
+            with open(CACHE_JSON, "w") as fp:
+                json.dump(cache, fp)
+            print(f"Updated referee cache written ({len(cache)} games).")
+        except Exception as e:
+            print(f"Warning: could not save cache: {e}")
+
+    # Gather results for all games in the tournament
+    results = [cache[ghash] for ghash in all_game_hashes if ghash in cache and cache[ghash]]
 
     # Aggregate stats
     agg = {
@@ -244,5 +276,6 @@ def run_parallel_referee(depth=10, max_games_per_file=None):
 
 if __name__ == "__main__":
     depth_arg = int(sys.argv[1]) if len(sys.argv) > 1 else 10
-    limit_arg = int(sys.argv[2]) if len(sys.argv) > 2 else None
-    run_parallel_referee(depth=depth_arg, max_games_per_file=limit_arg)
+    limit_arg = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2] != "None" else None
+    workers_arg = int(sys.argv[3]) if len(sys.argv) > 3 else 10
+    run_parallel_referee(depth=depth_arg, max_games_per_file=limit_arg, workers=workers_arg)

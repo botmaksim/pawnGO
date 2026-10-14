@@ -1,6 +1,6 @@
-# pawnGO ♟️
+# pawnGO
 
-**pawnGO** is a high-performance **~2900 Elo** chess engine and modern web platform. It pairs a modular C++20 UCI chess engine — running both as a native binary and compiled to **WebAssembly (WASM)** — with a responsive React/Vite web application. The engine executes locally in the user's browser via multi-threaded WebAssembly with SIMD acceleration, ensuring zero server latency and complete privacy.
+**pawnGO** is a ~2900 Elo chess engine and web application. It combines a modular C++20 UCI engine — executable natively or compiled to WebAssembly — with a React web client. The engine runs locally in the browser using multi-threaded WebAssembly with SIMD acceleration.
 
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
 [![WebAssembly](https://img.shields.io/badge/WebAssembly-SIMD%20%7C%20Threads-orange.svg)](https://webassembly.org/)
@@ -8,68 +8,66 @@
 [![Engine Rating](https://img.shields.io/badge/Engine%20Rating-~2900%20Elo-green.svg)](#empirical-benchmark-and-validation)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-🌐 **Live Production Deployment**: [pawngo.mybsu.online](https://pawngo.mybsu.online)
+**Live Deployment**: [pawngo.mybsu.online](https://pawngo.mybsu.online)
 
 ---
 
 ## Key Highlights
 
-- **~2900 Elo Empirically Verified**: Tested across a massive **1,530-game gauntlet tournament** against Stockfish 17.1 calibrated from 2400 to 3200 Elo under strict UCI conditions.
-- **Winning Score Against SF 2900**: Achieved **51.8% overall score** against `Stockfish 2900` across all time controls (including a **60.0% win rate** in slower blitz).
-- **NNUE Positional Evaluation**: Powered by an embedded 21MB neural network (`nn-62ef826d1a6d.nnue`) with dual-perspective accumulator caches and incremental stack updates.
-- **Flawless Endgames**: Integrated **Syzygy 3-4-5 tablebase** probing alongside dedicated endgame heuristics (King Centralization, Rule of the Square, Theoretical Draw Scaling, and Cornering).
-- **Dual Architecture**: Compiles to a native multi-threaded executable and directly into WebAssembly via Emscripten for 60 FPS in-browser evaluation.
+- **~2900 Elo Benchmark Rating**: Validated across a 2,550-game gauntlet tournament against Stockfish 17.1 calibrated from 2200 to 3600 Elo under UCI conditions.
+- **Competitive Parity vs SF 2900**: 51.8% overall score against Stockfish 2900 across all time controls, with 60.0% in slower blitz.
+- **NNUE Positional Evaluation**: Embedded neural network `nn-62ef826d1a6d.nnue` with dual-perspective accumulator caches and incremental stack updates.
+- **Syzygy Endgame Tablebases**: Direct probing of 3-4-5 piece Syzygy tablebases and dedicated endgame heuristics.
+- **Dual Compilation Target**: Compiles to a native executable and WebAssembly for in-browser execution.
 
 ---
 
 ## Engine Architecture
 
 ### 1. Board Representation & Move Generation
-- **Bitboard Engine**: 64-bit unsigned integers (`U64`) represent piece positions, square attacks, and board occupancy.
-- **Magic Bitboards**: Precomputed magic hashing algorithms for ultra-fast sliding piece move generation (bishops and rooks).
-- **Zobrist Hashing**: Incremental 64-bit position keys for instant transposition lookups, 50-move rule tracking, and 3-fold repetition detection.
-- **Strict Move Validation**: Pseudo-legal move validation ensuring correct destination occupancy, en-passant legality, and promotion sanity.
+- **Bitboard Representation**: 64-bit unsigned integers represent piece positions, square attacks, and board occupancy.
+- **Magic Bitboards**: Precomputed magic hashing algorithms for bishop and rook move generation.
+- **Zobrist Hashing**: Incremental 64-bit position keys for transposition lookups, 50-move rule tracking, and 3-fold repetition detection.
+- **Move Validation**: Pseudo-legal move validation ensuring correct destination occupancy, en-passant legality, and promotion sanity.
 
 ### 2. Evaluation System
-- **NNUE (Efficiently Updatable Neural Network)**: Probed via an optimized neural inference pipeline utilizing `nn-62ef826d1a6d.nnue`.
-- **Incremental Accumulators**: Accumulator state updates are computed incrementally during `make_move` / `unmake_move`, with automatic cache fallback on irreversible piece captures or pawn moves.
-- **Syzygy 3-4-5 Tablebases**: Full support for 3-, 4-, and 5-man Syzygy endgame tablebases (`tbprobe`) for instant root-level WDL/DTZ lookups and in-tree search adjudication.
-- **Endgame Heuristics Suite**:
-  - *Dynamic King Centralization*: King distance to center is actively rewarded (up to +96 cp) as pieces leave the board ($\le 4$ non-pawn pieces).
-  - *Rule of the Square*: Instant passer breakthrough detection (+500 cp) for unstoppable pawn promotions.
-  - *Theoretical Draw Scaling*: Automatic score zeroing for known theoretical draws ($KR$ vs $KR$, $KQ$ vs $KQ$, wrong-colored bishop with rook pawn, same-colored bishops).
-  - *Lone King Cornering*: Manhattan distance minimization to drive bare kings toward board edges during mating phases.
+- **NNUE Evaluation**: Neural network inference pipeline using `nn-62ef826d1a6d.nnue`.
+- **Incremental Accumulators**: Accumulator state updates are computed incrementally during `make_move` / `unmake_move`, with cache recalculation on irreversible moves.
+- **Syzygy Tablebases**: Direct probing of 3-, 4-, and 5-man Syzygy endgame tablebases for root WDL/DTZ lookups and in-tree search adjudication.
+- **Endgame Heuristics**:
+  - *King Centralization*: Rewards king proximity to the center as non-pawn material decreases.
+  - *Rule of the Square*: Fast breakthrough detection for unstoppable passed pawns.
+  - *Theoretical Draw Scaling*: Score zeroing for theoretical draws such as $KR$ vs $KR$ or opposite-colored bishop endgames with rook pawns.
+  - *Lone King Cornering*: Manhattan distance minimization to drive bare kings toward board edges.
   - *Tarrasch Rule*: Penalizes friendly rooks obstructing passed pawns from the front.
 
 ### 3. Search Engine
-- **Principal Variation Search (PVS)**: Aspiration windows around the previous iteration's score with adaptive delta widening.
-- **Transposition Table (TT)**: 64-byte aligned entries featuring depth-preferred replacement, generation aging, and fail-low best move preservation.
-- **Singular Extensions**: Re-searches the TT best move with reduced depth and tight margin; extends search depth by 1 or 2 plies when a move is strictly better than all alternatives.
+- **Principal Variation Search**: Aspiration windows around the previous iteration score with adaptive delta widening.
+- **Transposition Table**: 64-byte aligned entries with depth-preferred replacement, generation aging, and fail-low best move preservation.
+- **Singular Extensions**: Re-searches the transposition move with reduced depth to detect forced lines, extending search depth when a move is strictly superior to alternatives.
 - **Multi-Cut Pruning**: Early beta cutoffs when non-PV nodes confirm multiple refutations during singular verification.
-- **Null Move Pruning (NMP)**: Adaptive depth reduction based on search depth and position improvement status, guarded by zugzwang piece presence checks.
-- **Reverse Futility Pruning (RFP / Static NMP)**: Dynamic evaluation margins scaled by depth and static evaluation trends.
-- **Futility Pruning & Late Move Pruning (LMP)**: Prunes non-promising quiet moves at low depths while exempting tactical checks and advanced passed pawns.
-- **Late Move Reductions (LMR)**: Logarithmic depth/move reduction table adjusted dynamically for killers, countermoves, tactical checks, history scores, and advanced passed pawns.
-- **Static Exchange Evaluation (SEE)**:
-  - Quiet move SEE pruning at low depths.
-  - Bad capture SEE pruning in both alpha-beta search and quiescence search.
-- **Heuristic Move Ordering Pipeline**:
-  1. Transposition table (TT) move.
+- **Null Move Pruning**: Adaptive depth reduction based on search depth and position improvement status, guarded by zugzwang piece presence checks.
+- **Reverse Futility Pruning**: Static evaluation margins scaled by search depth.
+- **Futility Pruning & Late Move Pruning**: Prunes non-promising quiet moves at low depths while exempting tactical checks and advanced passed pawns.
+- **Late Move Reductions**: Logarithmic reduction table adjusted for killers, countermoves, tactical checks, history scores, and advanced passed pawns.
+- **Static Exchange Evaluation**: Prunes losing captures in search and quiescence.
+- **Move Ordering Pipeline**:
+  1. Transposition table move.
   2. Winning and equal captures ordered by MVV-LVA and Capture History.
   3. Pawn promotions.
   4. Killer moves (two slots per ply).
-  5. Countermove heuristic (indexed by previous move source and target).
+  5. Countermove heuristic indexed by previous move source and target.
   6. Continuation history (1-ply and 2-ply context tables).
   7. Main history table with smooth gravity decay:
      $$h \leftarrow h + \text{bonus} - \frac{h \cdot |\text{bonus}|}{16384}$$
   8. Losing captures (negative SEE).
-- **Quiescence Search**: Evaluates tactical captures, checks, and queen promotions to eliminate the horizon effect, protected by delta pruning and stand-pat checks.
+- **Quiescence Search**: Evaluates tactical captures, checks, and queen promotions, protected by delta pruning and stand-pat checks.
 
 ---
 
 ## Empirical Benchmark and Validation
 
-To definitively establish pawnGO's playing strength, a massive gauntlet benchmark was conducted using `cutechess-cli` against official calibrated Stockfish 17.1 rating levels from 2400 to 3600 Elo across Fast Blitz (`2+0.05`), Slower Blitz (`5+0.1`), and Ultra Slow (`10+0.25`).
+To establish pawnGO's playing strength, a 2,550-game tournament benchmark was conducted using `cutechess-cli` against official calibrated Stockfish 17.1 rating levels from 2200 to 3600 Elo across Fast Blitz (`2+0.05`), Slower Blitz (`5+0.1`), and Ultra Slow (`10+0.25`).
 
 ### Grand Performance Matrix Across All Games
 
@@ -79,6 +77,8 @@ To definitively establish pawnGO's playing strength, a massive gauntlet benchmar
 
 | Opponent Target | Fast Blitz (`2+0.05`, 100G) | Slower Blitz (`5+0.1`, 50G) | Ultra Slow (`10+0.25`, 20G) | Playing White | Playing Black | Total Score (170G) | Win Rate | Performance Rating |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Stockfish 2200** | +94 -4 =2 (95.0%) | +49 -0 =1 (99.0%) | +20 -0 =0 (100.0%) | 84.0/85 (98.8%) | 80.5/85 (94.7%) | **164.5 / 170** | **96.8%** | ~2792 Elo |
+| **Stockfish 2300** | +98 -2 =0 (98.0%) | +48 -2 =0 (96.0%) | +20 -0 =0 (100.0%) | 84.0/85 (98.8%) | 82.0/85 (96.5%) | **166.0 / 170** | **97.6%** | ~2944 Elo |
 | **Stockfish 2400** | +94 -6 =0 (94.0%) | +49 -1 =0 (98.0%) | +20 -0 =0 (100.0%) | 81.0/85 (95.3%) | 82.0/85 (96.5%) | **163.0 / 170** | **95.9%** | ~2948 Elo |
 | **Stockfish 2500** | +83 -11 =6 (86.0%) | +45 -3 =2 (92.0%) | +19 -1 =0 (95.0%) | 79.0/85 (92.9%) | 72.0/85 (84.7%) | **151.0 / 170** | **88.8%** | ~2860 Elo |
 | **Stockfish 2600** | +90 -6 =4 (92.0%) | +43 -5 =2 (88.0%) | +19 -0 =1 (97.5%) | 80.5/85 (94.7%) | 75.0/85 (88.2%) | **155.5 / 170** | **91.5%** | ~3013 Elo |
@@ -95,6 +95,21 @@ To definitively establish pawnGO's playing strength, a massive gauntlet benchmar
 
 ---
 
+### Stockfish Rating Calibration and Ceiling
+
+Official Stockfish implements `UCI_LimitStrength` and `UCI_Elo` up to an upper limit of 3190 Elo in its UCI configuration code. Setting `UCI_Elo` above 3190 has no effect within the native rating limiter.
+
+To test pawnGO against higher strength levels (3200 through 3600), `UCI_LimitStrength` was set to `false`, and calibrated via the engine's internal `Skill Level` parameter (0–20):
+- **Stockfish 3200**: `Skill Level 17`
+- **Stockfish 3300**: `Skill Level 18`
+- **Stockfish 3400**: `Skill Level 19`
+- **Stockfish 3500**: `Skill Level 19` with search modifications
+- **Stockfish 3600**: `Skill Level 20` (full-strength Stockfish 17.1 without handicap, ~3550–3600 CCRL Elo)
+
+In official Stockfish, `Skill Level 20` represents maximum unconstrained playing strength. No isolated 'Stockfish 3700' rating level exists. All benchmarks were conducted using official Stockfish 17.1.
+
+---
+
 ### Color Asymmetry & Opening Balance Analysis
 
 <p align="center">
@@ -103,96 +118,78 @@ To definitively establish pawnGO's playing strength, a massive gauntlet benchmar
 
 ---
 
-### Time Control Breakdown & Empirical Analysis
+### Time Control Breakdown
 
 <p align="center">
   <img src="assets/benchmark_by_control.png" alt="Performance by Time Control Matrix" width="100%" />
 </p>
 
-#### Technical Observations Across Time Controls:
-1. **⚡ Fast Blitz (`2+0.05`, 100 Games / Level)**:
-   - **Early Tactical Refutation**: pawnGO crushes tactical inaccuracies rapidly against opponents from 2400 to 2700 (78%–94% win rate).
-   - **NNUE Advantage**: Singular Extensions and fast evaluation punish positional hesitations before endgames arise.
-   - **50% Parity**: Reached at **~2880 Elo**.
-
-2. **⏱️ Slower Blitz (`5+0.1`, 50 Games / Level)**:
-   - **Master-Level Stability**: High consistency across opening and middlegame structures, achieving **60.0% against Stockfish 2900** and **42.0% against Stockfish 3300**.
-   - **Syzygy Conversion**: 5-man tablebases cleanly finish off simplified advantages.
-
-3. **⏳ Ultra Slow (`10+0.25`, 20 Games / Level)**:
-   - **Peak Accuracy Against Sub-2900**: Contrary to common intuition, pawnGO achieves its **highest peak win rates** on Ultra Slow against opponents under 2900 Elo (**100% vs 2400, 95% vs 2500, 97.5% vs 2600, 90% vs 2700, 70% vs 2800**). At 20+ plies of search depth, blunder rates drop to virtually zero.
-   - **Parity Baseline**: Holds solid **50.0% parity against Stockfish 2900**.
+- **Fast Blitz (`2+0.05`, 100 games per level)**: pawnGO maintains high conversion against opponents from 2200 to 2700 (78% to 98% score). Parity (50% score) occurs at ~2880 Elo.
+- **Slower Blitz (`5+0.1`, 50 games per level)**: Consistent positional play, achieving 60.0% against Stockfish 2900 and 42.0% against Stockfish 3300.
+- **Ultra Slow (`10+0.25`, 20 games per level)**: Clean conversion against opponents under 2900 Elo (100% vs 2200–2400, 95% vs 2500, 97.5% vs 2600, 90% vs 2700). Baseline parity is 50.0% against Stockfish 2900.
 
 ---
 
-### Game Phase Dynamics: Tactical Knockouts vs Endgame Grinds
+### Game Length and Phase Analysis
 
 <p align="center">
-  <img src="assets/benchmark_game_phases.png" alt="pawnGO Phase Analysis: Tactical Middlegame Dominance vs Deep Technical Endgames" width="100%" />
+  <img src="assets/benchmark_game_phases.png" alt="pawnGO Game Length and Phase Analysis" width="100%" />
 </p>
 
-#### Why pawnGO Dominates Early and Stutters in Late Endgames (>70 moves):
-- **💥 Tactical Knockouts (<35 moves)**: pawnGO records an overwhelming **67.6% win rate** (+213 -99 =12) across the entire gauntlet up to 3600 Elo. In early tactics and middlegame complications, the engine excels at finding tactical shots, king attacks, and decisive piece sacrifices.
-- **⚔️ Tactical Middlegames (35–50 moves)**: Sustains a solid **51.1% win rate** (+327 -312 =24).
-- **♟️ Early Endgames (50–70 moves)**: At **43.1% win rate** (+275 -371 =51), transition into 6- and 7-piece endings before Syzygy triggers is the engine's primary bottleneck against 3000+ opponents.
-- **⏳ Deep Technical Grinds (>70 moves)**: Achieves **50.0% win rate** (+176 -176 =174). A massive proportion of long games resolve into theoretical draws (174 draws) or Syzygy 5-piece tablebase holds.
-- **Conversion Velocity**: pawnGO wins decisively and quickly with a median game length of **48 moves** (mean 52.7m), whereas losses drag out to a median of **54 moves** (mean 55.8m) when opponents survive the middlegame storm and maneuver into deep technical endgames.
+- **Under 35 moves**: 78.9% score (+390 -100 =12, 502 games). Early tactical sharpness and NNUE evaluation deliver high conversion before complex endgames.
+- **35 to 50 moves**: 58.1% score (+439 -313 =24, 776 games). Stable performance in full middlegames.
+- **50 to 70 moves**: 45.0% score (+302 -375 =51, 728 games). Transitions into 6- and 7-piece endings prior to 5-piece Syzygy tablebase resolution represent the primary challenge against 3000+ opponents.
+- **Over 70 moves**: 51.0% score (+189 -178 =177, 544 games). High draw frequency (177 draws) and 5-piece tablebase holds.
+- **Game Length Distribution**: Wins resolve with a median of 43 moves (mean 48.9 moves); losses resolve with a median of 54 moves (mean 55.9 moves).
 
 ---
 
-### Opening Repertoire Robustness
+### Opening Repertoire Performance Across Rating Levels
 
 <p align="center">
-  <img src="assets/benchmark_openings.png" alt="Performance Across Major Opening Repertoires" width="100%" />
+  <img src="assets/benchmark_openings.png" alt="pawnGO Opening Repertoire Performance Across Rating Levels" width="100%" />
 </p>
 
-pawnGO demonstrates exceptional opening versatility across 2,210 tournament games against grandmaster-level competition:
-- **French Defense**: **55.2% win rate** (+75 -59 =20, 154 Games)
-- **English Opening**: **52.7% win rate** (+101 -89 =31, 221 Games)
-- **Queen's Gambit Declined**: **50.7% win rate** (+98 -95 =28, 221 Games)
-- **Sicilian Defense**: **50.4% win rate** (+159 -156 =47, 362 Games)
-- **Grünfeld Defense**: **50.0% win rate** (+32 -32 =10, 74 Games)
-- **Catalan Opening**: **49.4% win rate** (+33 -34 =11, 78 Games)
-- **Caro-Kann Defense**: **49.0% win rate** (+67 -70 =13, 150 Games)
-- **Queen's Bishop Game**: **48.6% win rate** (+30 -32 =12, 74 Games)
-- **Giuoco Piano**: **45.5% win rate** (+31 -38 =8, 77 Games)
-- **Two Knights Defense**: **44.2% win rate** (+30 -39 =8, 77 Games)
+Performance across 2,550 tournament games distributed into three opponent rating tiers:
+- **2200–2600 Elo (850 games)**: Above 90% score across all major openings (Two Knights 100%, Queen's Bishop 97%, French 95%, Giuoco Piano 95%, Catalan 94%, English 94%, QGD 94%, Pirc 93%, Caro-Kann 93%, Sicilian 91%).
+- **2700–3100 Elo (850 games, peer tier)**: Ruy Lopez 69.0%, French 59.3%, Grünfeld 55.2%, Queen's Gambit Declined 54.0%, Sicilian 52.8%, English 51.9%, Catalan 51.6%, Pirc 50.0%, Giuoco Piano 44.6%, Two Knights 44.8%, Caro-Kann 43.2%.
+- **3200–3600 Elo (850 games, top Stockfish)**: English Opening retains 30.7%, Caro-Kann 27.3%, French 26.7%, Ruy Lopez 25.9%, Catalan 25.8%, QGD 25.0%, Sicilian 24.3%. Openings with high tactical commitment (Two Knights 6.9%, Giuoco Piano 15.0%) show the sharpest drop against superhuman search depths.
 
 ---
 ### Stockfish 17.1 Parallel Referee Evaluation
 
-> Independent evaluation by official Stockfish 17.1 referee over **1,574 tournament games** and **92,659 pawnGO moves**:
+> Independent evaluation by official Stockfish 17.1 referee over **2,550 tournament games** and **144,507 pawnGO moves**:
 
 | Metric | pawnGO Engine Performance |
 | :--- | :--- |
-| **Overall Accuracy** | **90.1%** |
-| **Average Centipawn Loss (ACPL)** | **24.7 cp** |
-| **White Accuracy / ACPL** | **90.4%** (24.1 cp) |
-| **Black Accuracy / ACPL** | **89.8%** (25.4 cp) |
-| **★ Best Moves** | **57,746** (62.3%) |
-| **✓ Good Moves** | **18,361** (19.8%) |
-| **?! Inaccuracies** | 11,323 (12.2%) |
-| **? Mistakes** | 3,900 (4.2%) |
-| **?? Blunders** | **1,329 (1.4%)** |
+| **Overall Accuracy** | **88.3%** |
+| **Average Centipawn Loss (ACPL)** | **29.2 cp** |
+| **White Accuracy / ACPL** | **88.6%** (28.6 cp) |
+| **Black Accuracy / ACPL** | **88.0%** (29.9 cp) |
+| **Best Moves** | **79,821** (55.2%) |
+| **Good Moves** | **31,522** (21.8%) |
+| **Inaccuracies** | 22,851 (15.8%) |
+| **Mistakes** | 8,057 (5.6%) |
+| **Blunders** | **2,256 (1.6%)** |
 
 ---
 
 ## Web Application
 
-The frontend delivers an interactive, zero-latency desktop and mobile chess experience:
+The frontend provides an in-browser interface for play and analysis:
 
-- **Client-Side WASM Execution**: The C++ engine executes entirely inside a dedicated Web Worker via `SharedArrayBuffer` with COOP/COEP compliance.
-- **Dynamic Win-Rate Evaluation Bar**: Real-time evaluation bar with smooth asymptotic win-probability mapping.
-- **Post-Game Game Review**: Automatic move quality classification engine with move badges:
-  - `★` **Best Move** (matching top engine line or negligible delta)
-  - `✓` **Good Move** (sound positional play)
-  - `?!` **Inaccuracy** ($\Delta \le -0.50$ cp)
-  - `?` **Mistake** ($\Delta \le -1.50$ cp or unjustified material sacrifice)
-  - `??` **Blunder** ($\Delta > -1.80$ cp)
-  - `📖` **Book Move** (Polyglot opening library)
-- **Polyglot Opening Book**: Embedded opening book (`Perfect2023.bin`) with instant recognition of major opening lines.
-- **Audio Feedback**: Streamlined procedural audio system for moves and captures with instant mute controls.
-- **Analysis Tools**: Multi-PV line inspection, custom FEN setup, PGN import/export, and keyboard arrow navigation.
+- **Client-Side WebAssembly**: Engine runs inside a dedicated Web Worker using `SharedArrayBuffer` with COOP and COEP compliance.
+- **Evaluation Bar**: Real-time evaluation bar with asymptotic win-probability mapping.
+- **Move Classification**: Move quality categorization:
+  - Best Move: matching top engine line
+  - Good Move: sound positional play
+  - Inaccuracy: loss $\le 0.50$ cp
+  - Mistake: loss $\le 1.50$ cp
+  - Blunder: loss $> 1.80$ cp
+  - Book Move: Polyglot opening library match
+- **Polyglot Opening Book**: Embedded opening book `Perfect2023.bin` for opening phase recognition.
+- **Audio Feedback**: Procedural audio for moves and captures.
+- **Analysis Tools**: Multi-PV line inspection, custom FEN setup, PGN import/export, and keyboard navigation.
 
 ---
 
