@@ -102,41 +102,40 @@ export function classifyMove(nodeA, nodeB, sanMove) {
     const oppMatB = turnA === 'w' ? matB.black : matB.white;
     const sacrificedMaterial = (playerMatA - playerMatB) > (oppMatA - oppMatB) + 1;
 
-    // Brilliant (!!): sacrificed material, position remains winning or solid, and minimal win% loss
+    // Brilliant (!!): piece sacrifice with sound continuation
     if (sacrificedMaterial && playerScoreB >= -0.2 && winProbDelta >= -0.04) {
         return '!!';
     }
 
-    // Best Move (★): Strict engine top move OR win% loss < 2% OR pawns delta >= -0.10
+    // Best Move (★): engine primary line or minimal win-probability loss
     if (isStrictTopMove || winProbDelta >= -0.02 || pawnsDelta >= -0.10) {
         return '★';
     }
 
-    // Good Move (✓): Win% loss up to 6% OR pawns delta >= -0.35
+    // Good Move (✓)
     if (winProbDelta >= -0.06 || pawnsDelta >= -0.35) {
         return '✓';
     }
 
-    // Inaccuracy (?!): Win% loss between 6% and 12%
+    // Inaccuracy (?!)
     if (winProbDelta >= -0.12) {
         return '?!';
     }
 
-    // Mistake (?): Win% loss between 12% and 22%
+    // Mistake (?)
     if (winProbDelta >= -0.22) {
         return '?';
     }
 
-    // If win% loss is > 22%:
-    // If the player remains completely winning, cap severity so it's NOT a blunder:
+    // Cap classification severity if position remains decisively winning
     if (playerScoreB >= 3.5) {
-        return '?!'; // Up a piece or queen, still completely winning
+        return '?!';
     }
     if (playerScoreB >= 1.8) {
-        return '?';  // Clearly winning (+1.8+), at worst a mistake
+        return '?';
     }
 
-    // Blunder (??): Decisive drop in evaluation that turns win into draw/loss or equal into lost
+    // Blunder (??): game-altering loss of winning advantage or turning draw into loss
     return '??';
 }
 

@@ -546,8 +546,7 @@ function App() {
       clearTimeout(reinitTimerRef.current);
       if (wsRef.current) wsRef.current.close();
     };
-  }, []); // Run ONLY ONCE!
-
+  }, []);
 
   useEffect(() => {
     if (engineReady && wsRef.current && wsRef.current.readyState === 1 && !isEngineSearchingRef.current) {
@@ -567,13 +566,12 @@ function App() {
 
   const processNextAnalysisNode = () => {
     if (analyzeQueueRef.current.length === 0) {
-      // Done analyzing! Now classify moves
+      // Game analysis complete: classify moves
       setIsAnalyzingGame(false);
       isAnalyzingGameRef.current = false;
       currentAnalyzeNodeIdRef.current = null;
       setNodes(prevNodes => {
         const nextNodes = { ...prevNodes };
-        // Traverse all nodes that have parents
         for (let key in nextNodes) {
           if (nextNodes[key].parentId && nextNodes[nextNodes[key].parentId]) {
             let parent = nextNodes[nextNodes[key].parentId];
@@ -672,7 +670,7 @@ function App() {
         } catch (e) {}
 
         if (!isBotTurn && !isAnalyzingGameRef.current) {
-            // It's player's turn against computer: never run analysis or waste CPU
+            // Engine idling while awaiting player move
             if (wsRef.current && wsRef.current.readyState === 1 && isEngineSearchingRef.current) {
                 wsRef.current.send('stop');
             }
@@ -705,7 +703,7 @@ function App() {
 
         wsRef.current.send(posCmd);
         if (isBotTurn) {
-            // 0 depth limits, max strength move time (3.2 seconds)
+            // Allocate 3.2s per move in play against engine mode
             wsRef.current.send(`go movetime 3200`);
         } else {
             wsRef.current.send(`go depth ${depthToUse}`);

@@ -214,13 +214,12 @@ namespace Evaluation {
 
         int side = pos.side;
 
-        // 1. 50-Move Rule Progress Scaling
-        // Encourages pawn pushes or captures to avoid shuffling into 50-move draws
+        // 50-move rule progress scaling to avoid shuffling into draws
         if (pos.rule50 >= 40 && std::abs(score) < 25000) {
             score = score * (100 - pos.rule50) / 60;
         }
 
-        // 2. Insufficient Mating Material / Drawish Endgames
+        // Material-based draw recognition
         int w_pawns = Bitboard::count_bits(pos.pieceBB[P]);
         int b_pawns = Bitboard::count_bits(pos.pieceBB[p]);
         int w_queens = Bitboard::count_bits(pos.pieceBB[Q]);
@@ -237,24 +236,20 @@ namespace Evaluation {
         int w_majors = w_queens + w_rooks;
         int b_majors = b_queens + b_rooks;
 
-        // No pawns on board
         if (w_pawns == 0 && b_pawns == 0) {
-            // KB vs K, KN vs K, KB vs KB, KN vs KN, KN vs KB
             if (w_majors == 0 && b_majors == 0) {
                 if (w_minors <= 1 && b_minors <= 1) return 0;
-                // KNN vs K cannot force mate
                 if ((w_minors == 2 && w_knights == 2 && b_minors == 0) ||
                     (b_minors == 2 && b_knights == 2 && w_minors == 0)) {
                     return 0;
                 }
             }
-            // KR vs KR
             if (w_majors == 1 && b_majors == 1 && w_rooks == 1 && b_rooks == 1 && w_minors == 0 && b_minors == 0) {
-                score /= 4; // heavily drawish
+                score /= 4;
             }
         }
 
-        // Pure Opposite-Colored Bishops (OCB): No queens, no rooks, no knights
+        // Pure opposite-colored bishops fortress scaling (no rooks, queens, or knights)
         if (w_queens == 0 && b_queens == 0 && w_rooks == 0 && b_rooks == 0 && w_knights == 0 && b_knights == 0 && w_bishops == 1 && b_bishops == 1) {
             int w_bsq = Bitboard::lsb(pos.pieceBB[B]);
             int b_bsq = Bitboard::lsb(pos.pieceBB[b]);
@@ -263,24 +258,23 @@ namespace Evaluation {
             if (w_light != b_light) {
                 int pawn_diff = std::abs(w_pawns - b_pawns);
                 if (pawn_diff <= 1) {
-                    score /= 3; // strong fortress tendency
+                    score /= 3;
                 } else if (pawn_diff == 2) {
                     score /= 2;
                 }
             }
         }
 
-        // 3. Positional Endgame Terms (Passed Pawns, Rooks on Open Files)
+        // Positional endgame evaluation (passed pawns and rook placement)
         int positional_bonus = 0;
         int w_king_sq = Bitboard::lsb(pos.pieceBB[K]);
         int b_king_sq = Bitboard::lsb(pos.pieceBB[k]);
 
-        // Passed pawns: rank progression & king escort
+        // Passed pawns: advancement, Tarrasch rule, and king escort
         U64 wp = pos.pieceBB[P];
         while (wp) {
             int sq = Bitboard::lsb(wp);
             if (!(pos.pieceBB[p] & passed_pawn_masks[WHITE][sq])) {
-                // White passed pawn!
                 int rank = sq / 8;
                 int file = sq % 8;
                 int rank_bonus = 0;
@@ -294,7 +288,7 @@ namespace Evaluation {
                 if (pos.pieceBB[R] & behind_mask) rank_bonus += 25;
                 if (pos.pieceBB[r] & behind_mask) rank_bonus -= 20;
 
-                // King escort in endgame (if few majors)
+                // King escort in endgame
                 if (w_majors + b_majors <= 2 && w_king_sq != -1 && b_king_sq != -1) {
                     int w_dist = chebyshev_distance(w_king_sq, sq);
                     int b_dist = chebyshev_distance(b_king_sq, sq);
@@ -309,7 +303,6 @@ namespace Evaluation {
         while (bp) {
             int sq = Bitboard::lsb(bp);
             if (!(pos.pieceBB[P] & passed_pawn_masks[BLACK][sq])) {
-                // Black passed pawn!
                 int rank = 7 - (sq / 8);
                 int file = sq % 8;
                 int rank_bonus = 0;
@@ -323,6 +316,7 @@ namespace Evaluation {
                 if (pos.pieceBB[r] & behind_mask) rank_bonus += 25;
                 if (pos.pieceBB[R] & behind_mask) rank_bonus -= 20;
 
+                // King escort in endgame
                 if (w_majors + b_majors <= 2 && w_king_sq != -1 && b_king_sq != -1) {
                     int w_dist = chebyshev_distance(w_king_sq, sq);
                     int b_dist = chebyshev_distance(b_king_sq, sq);
@@ -390,7 +384,6 @@ namespace Evaluation {
                 std::cerr << "Failed to allocate 64-byte aligned memory for NNUE stack" << std::endl;
                 exit(1);
             }
-            // Zero initialize
             for (int i = 0; i < MAX_PLY; i++) {
                 nnue_stack[i].dirtyPiece.dirtyNum = 0;
                 nnue_stack[i].accumulator.computedAccumulation = 0;
@@ -405,9 +398,9 @@ namespace Evaluation {
         int squares[65];
         int index = 2;
 
-        pieces[0] = 1; // wking
+        pieces[0] = 1;
         squares[0] = Bitboard::lsb(pos.pieceBB[K]);
-        pieces[1] = 7; // bking
+        pieces[1] = 7;
         squares[1] = Bitboard::lsb(pos.pieceBB[k]);
 
         if (squares[0] == -1 || squares[1] == -1) return evaluate(pos);
@@ -424,7 +417,7 @@ namespace Evaluation {
                 Bitboard::pop_bit(bb, sq);
             }
         }
-        pieces[index] = 0; // End marker
+        pieces[index] = 0;
 
         NNUEdata* nnue_data[3];
         nnue_data[0] = &nnue_stack[ply];
@@ -449,7 +442,7 @@ namespace Evaluation {
             black_mat += Bitboard::count_bits(pos.pieceBB[pc]) * mg_value[pc - p];
         }
 
-        // Lazy Evaluation: If material imbalance is huge, skip complex eval
+        // Lazy evaluation: skip expensive calculation on decisive material imbalance
         int mat_diff = white_mat - black_mat;
         if (std::abs(mat_diff) >= 1500) {
             return (pos.side == WHITE) ? mat_diff : -mat_diff;
@@ -458,12 +451,11 @@ namespace Evaluation {
         if (use_nnue) {
             int pieces[65];
             int squares[65];
-            int index = 2; // 0 and 1 are reserved for kings
+            int index = 2;
 
-            // Kings must be at index 0 and 1
-            pieces[0] = 1; // wking
+            pieces[0] = 1;
             squares[0] = Bitboard::lsb(pos.pieceBB[K]);
-            pieces[1] = 7; // bking
+            pieces[1] = 7;
             squares[1] = Bitboard::lsb(pos.pieceBB[k]);
 
             if (squares[0] == -1 || squares[1] == -1) return (pos.side == WHITE) ? mat_diff : -mat_diff;
@@ -480,19 +472,15 @@ namespace Evaluation {
                     Bitboard::pop_bit(bb, sq);
                 }
             }
-            pieces[index] = 0; // End of array marker
+            pieces[index] = 0;
 
             int nnue_score = nnue_evaluate(pos.side, pieces, squares);
             return adjust_eval(nnue_score, pos);
         }
 
-
-
-        // Arrays of pointers to PSTs for easy iteration
         const int* mg_psts[6] = {mg_pawn_pst, mg_knight_pst, mg_bishop_pst, mg_rook_pst, mg_queen_pst, mg_king_pst};
         const int* eg_psts[6] = {eg_pawn_pst, eg_knight_pst, eg_bishop_pst, eg_rook_pst, eg_queen_pst, eg_king_pst};
 
-        // Evaluate White
         for (int pc = P; pc <= K; pc++) {
             U64 bb = pos.pieceBB[pc];
             int pType = pc - P;
@@ -505,7 +493,6 @@ namespace Evaluation {
             }
         }
 
-        // Evaluate Black
         for (int pc = p; pc <= k; pc++) {
             U64 bb = pos.pieceBB[pc];
             int pType = pc - p;
@@ -522,7 +509,7 @@ namespace Evaluation {
         int mg_total = mg_score[WHITE] - mg_score[BLACK];
         int eg_total = eg_score[WHITE] - eg_score[BLACK];
 
-        // phase is 24 at start (100% MG), 0 at endgame (100% EG)
+        // Tapered evaluation linearly interpolated by game phase (24=MG, 0=EG)
         int score = (mg_total * phase + eg_total * (24 - phase)) / 24;
 
         return adjust_eval((pos.side == WHITE) ? score : -score, pos);

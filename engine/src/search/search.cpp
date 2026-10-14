@@ -936,7 +936,7 @@ namespace Search {
                     if (ply < 512 && (move == killer_moves[0][ply] || move == killer_moves[1][ply])) R = 0;
                     if (prev_move != 0 && counter_move[GET_MOVE_SOURCE(prev_move)][GET_MOVE_TARGET(prev_move)] == move) R = 0;
                 } else if (!see_ge(pos, move, 0)) {
-                    // Bad captures (negative SEE) should also be reduced!
+                    // Reduce losing captures (negative SEE)
                     R = 1 + (!is_pv ? 1 : 0);
                 }
                 
@@ -1301,27 +1301,24 @@ namespace Search {
         std::lock_guard<std::mutex> main_lock(main_search_mtx);
 
         if (current_search_id != -1 && current_search_id != search_id.load(std::memory_order_relaxed)) {
-            return; // Superseded before it even started!
+            return;
         }
 
         auto search_start_time = std::chrono::steady_clock::now();
         if (time_for_move_ms != -1) {
             time_managed = true;
             if (is_fixed_movetime) {
-                // Fixed movetime mode (Web play vs human):
-                // Stop at time_for_move_ms minus a tiny 25ms safety margin for UCI communication
+                // Fixed movetime: hard stop with a 25ms communication buffer
                 long long hard_stop = std::max(10LL, time_for_move_ms - 25);
                 search_end_time = search_start_time + std::chrono::milliseconds(hard_stop);
             } else {
-                // Tournament clock mode (vs bots under time controls wtime/btime):
-                // Allow extending up to 2x nominal move time in difficult/unstable positions
+                // Clock-managed time: allow up to 2x nominal allocation in tactical positions
                 search_end_time = search_start_time + std::chrono::milliseconds(time_for_move_ms * 2);
             }
         } else {
             time_managed = false;
         }
 
-        // We do NOT parse current_fen here, because main.cpp already sets up the board and applies moves!
         clear_heuristics();
         
         auto move_to_string = [](Move m) -> std::string {
@@ -1355,7 +1352,7 @@ namespace Search {
         Evaluation::allocate_nnue_stack();
         Evaluation::nnue_stack[0].accumulator.computedAccumulation = 0;
         if (Evaluation::use_nnue) {
-            Evaluation::evaluate_incremental(pos, 0); // Initialize root accumulator properly!
+            Evaluation::evaluate_incremental(pos, 0); // Initialize root NNUE accumulator
         }
 
         MovePicker move_picker(pos, 0, 0, 0, false);
@@ -1590,18 +1587,14 @@ namespace Search {
             if (time_managed) {
                 auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - search_start_time).count();
                 if (is_fixed_movetime) {
-                    // Fixed movetime mode (Web play vs human):
-                    // Do NOT cut off early at 50-60% just because move_stable! The human gave us 3.2s, use it!
-                    // Only stop if we've spent >= 85% of time, since the next depth will take longer than remaining time.
+                    // Fixed movetime: allow searching up to 85% of allocated time before cutting off
                     long long cutoff_time = (time_for_move_ms * 85) / 100;
                     if (elapsed >= cutoff_time) {
                         stopped = true;
                         break;
                     }
                 } else {
-                    // Tournament clock mode (vs bots under time controls wtime/btime):
-                    // If move is stable, exit at 60% of time to preserve clock for future moves!
-                    // If move is unstable, spend up to 120% of nominal time.
+                    // Clock-managed time: early cutoff if best move is stable to preserve clock
                     long long cutoff_time = move_stable ? (time_for_move_ms * 6 / 10) : (time_for_move_ms * 12 / 10);
                     if (elapsed >= cutoff_time) {
                         stopped = true;

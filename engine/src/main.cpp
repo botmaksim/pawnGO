@@ -38,7 +38,7 @@ void log(const std::string& msg) {
         auto now = std::chrono::system_clock::now();
         std::time_t now_time = std::chrono::system_clock::to_time_t(now);
         std::string t = std::ctime(&now_time);
-        t.pop_back(); // remove newline
+        t.pop_back();
         engine_logger << "[" << t << "] " << msg << std::endl;
     }
 }
@@ -109,7 +109,7 @@ void uciLoop() {
                 std::string fen = line.substr(fen_idx + 4);
                 if (moves_idx != std::string::npos) fen = line.substr(fen_idx + 4, moves_idx - (fen_idx + 4));
                 Bitboard::parse_fen(pos, fen);
-                game_ply = 0; // If custom FEN, assume ply 0 or handle accordingly. Assuming 0 is safe for now.
+                game_ply = 0;
             } else if (line.find("startpos") != std::string::npos) {
                 Bitboard::parse_fen(pos, startpos);
                 game_ply = 0;
@@ -119,7 +119,7 @@ void uciLoop() {
                 std::string moves_str = line.substr(moves_idx + 6);
                 std::stringstream ss(moves_str);
                 std::string move_str;
-                game_ply = 0; // Reset game ply when parsing moves
+                game_ply = 0;
                 while (ss >> move_str) {
                     game_ply++;
                     MoveList move_list;
@@ -222,11 +222,11 @@ void uciLoop() {
                     std::cout << "info string Book move" << std::endl;
                     std::cout << "bestmove " << m_str << std::endl;
                     log("Book move played automatically: " + m_str);
-                    continue; // Skip the search
+                    continue;
                 }
             }
             
-            // Stop any ongoing search first
+            // Abort active search before starting new search
             Search::stopped = true;
             if (search_thread.joinable()) search_thread.join();
 
@@ -261,16 +261,15 @@ void uciLoop() {
                 if (time_for_move < 25) time_for_move = 25;
             }
             
-            // Reset stopped flag before launching!
             Search::stopped = false;
             
             Search::search_id.fetch_add(1, std::memory_order_relaxed);
             int current_search_id = Search::search_id.load(std::memory_order_relaxed);
 
-            // Capture the current main thread's board state
+            // Capture current board state for search thread
             BoardState local_pos = pos;
 
-            // Launch search in a background thread so UCI remains responsive
+            // Execute search asynchronously
             search_thread = std::thread([=]() {
                 BoardState thread_pos = local_pos;
                 Search::thread_search_id = current_search_id;
@@ -344,7 +343,7 @@ void wasm_search_worker() {
 #endif
 
 void execute_uci_command(const std::string& line, std::thread& search_thread) {
-    // We basically copy the inside of the while loop into here for the Wasm API
+    // Process UCI commands in WebAssembly / Emscripten environment
     log("IN: " + line);
 
     if (line == "quit") {
@@ -393,7 +392,7 @@ void execute_uci_command(const std::string& line, std::thread& search_thread) {
         if (val_idx != std::string::npos) {
             int threads = std::stoi(line.substr(val_idx + 6));
 #ifdef __EMSCRIPTEN__
-            threads = 1; // Lazy SMP is buggy in Emscripten Wasm
+            threads = 1; // Single-thread worker fallback in browser environment
 #endif
             Search::init_threads(threads);
             log("Threads set to " + std::to_string(threads));
@@ -526,11 +525,11 @@ void execute_uci_command(const std::string& line, std::thread& search_thread) {
                 std::cout << "info string Book move" << std::endl;
                 std::cout << "bestmove " << m_str << std::endl;
                 log("Book move played automatically: " + m_str);
-                return; // Skip the search
+                return;
             }
         }
         
-        // Stop any ongoing search first
+        // Abort active search before starting new search
         Search::stopped = true;
 #ifdef __EMSCRIPTEN__
         while (wasm_search_is_running.load(std::memory_order_relaxed)) {
@@ -571,16 +570,15 @@ void execute_uci_command(const std::string& line, std::thread& search_thread) {
             if (time_for_move < 20) time_for_move = 20;
         }
         
-        // Reset stopped flag before launching!
         Search::stopped = false;
         
         Search::search_id.fetch_add(1, std::memory_order_relaxed);
         int current_search_id = Search::search_id.load(std::memory_order_relaxed);
 
-        // Capture the current main thread's board state
+        // Capture current board state for search worker
         BoardState thread_pos = pos;
 
-        // Launch search in a background thread so UCI remains responsive
+        // Dispatch search asynchronously
 #ifdef __EMSCRIPTEN__
         {
             std::lock_guard<std::mutex> lock(wasm_search_mtx);
@@ -664,7 +662,7 @@ int main() {
 #endif
 
 #ifdef __EMSCRIPTEN__
-    // Do nothing here, Wasm engine is waiting for execute_uci_command
+    // Launch background worker and keep Emscripten runtime alive
     wasm_search_thread_instance = std::thread(wasm_search_worker);
     log("Wasm Engine initialized. Waiting for commands.");
     emscripten_exit_with_live_runtime();
