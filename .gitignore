@@ -49,6 +49,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
+venv/
+.venv/
+env/
+ENV/
 
 #*.nnue
 3-4-5/
