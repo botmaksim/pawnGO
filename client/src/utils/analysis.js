@@ -41,8 +41,17 @@ export function winProbability(pawns) {
 export function classifyMove(nodeA, nodeB, sanMove) {
     if (!nodeA || !nodeB) return '';
 
-    // 1. Opening Book Detection
-    if (nodeA.isBook || nodeB.isBook || nodeA.pvLines?.['1']?.score === 'Book' || nodeB.pvLines?.['1']?.score === 'Book') {
+    // 1. Checkmate is decisive: always classified as Best Move
+    const gameB = new Chess();
+    try { gameB.load(nodeB.fen); } catch(e) {}
+    if (gameB.isCheckmate() || (sanMove && sanMove.includes('#'))) {
+        return '★';
+    }
+
+    // 2. Opening Book Detection (only during opening phase and not game over)
+    const ply = nodeB.ply || 0;
+    const isBookCandidate = ply <= 30 && !gameB.isGameOver();
+    if (isBookCandidate && (nodeA.isBook || nodeB.isBook || nodeA.pvLines?.['1']?.score === 'Book' || nodeB.pvLines?.['1']?.score === 'Book')) {
         return '📖'; // Book move
     }
 

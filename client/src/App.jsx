@@ -3,7 +3,7 @@ import { Chess } from 'chess.js';
 import { Chessboard } from 'react-chessboard';
 import EvalBar from './EvalBar';
 import { classifyMove, getAnnotationDescription } from './utils/analysis';
-import { playMoveSound, playCaptureSound, playCheckSound, playCastleSound, playEndSound, isSoundEnabled, setSoundEnabled, getMasterVolume, setMasterVolume } from './utils/sound';
+import { playMoveSound, playCaptureSound, playCastleSound, isSoundEnabled, setSoundEnabled, getMasterVolume, setMasterVolume } from './utils/sound';
 
 // Helper to generate IDs
 const genId = () => Math.random().toString(36).substr(2, 9);
@@ -505,7 +505,9 @@ function App() {
         if (isAnalyzingGameRef.current && currentAnalyzeNodeIdRef.current) {
           const analyzedId = currentAnalyzeNodeIdRef.current;
           let analyzedPvs = { ...latestPvLinesRef.current };
-          const isBook = Object.keys(analyzedPvs).length === 0 || analyzedPvs['1']?.score === 'Book' || msg.includes('Book');
+          const analyzedNode = nodesRef.current[analyzedId];
+          const nodePly = analyzedNode?.ply || 0;
+          const isBook = (nodePly <= 30) && (analyzedPvs['1']?.score === 'Book' || msg.includes('Book'));
           if (isBook) {
             analyzedPvs = {
               '1': { depth: 'Book', score: 'Book', pv: msg.split(' ')[1] || '', san: '' }
@@ -596,8 +598,31 @@ function App() {
     currentAnalyzeNodeIdRef.current = nextId;
     setAnalyzeProgress(p => ({ ...p, current: p.total - analyzeQueueRef.current.length }));
     
+    const nodeFen = nodesRef.current[nextId]?.fen;
+    const tempGame = new Chess();
+    try { if (nodeFen) tempGame.load(nodeFen); } catch (e) {}
+
+    if (tempGame.isGameOver()) {
+      let score = '0.00';
+      if (tempGame.isCheckmate()) {
+        score = tempGame.turn() === 'b' ? 'M0' : '-M0';
+      }
+      setNodes(prev => ({
+        ...prev,
+        [nextId]: {
+          ...prev[nextId],
+          pvLines: {
+            '1': { depth: 0, score: score, pv: '', san: '' }
+          },
+          isBook: false
+        }
+      }));
+      setTimeout(processNextAnalysisNode, 10);
+      return;
+    }
+
     // Depth 14 for swift and accurate game review
-    requestAnalysis(nodesRef.current[nextId].fen, 14, nextId);
+    requestAnalysis(nodeFen, 14, nextId);
   };
 
   const startFullGameAnalysis = () => {
@@ -747,12 +772,6 @@ function App() {
       playCastleSound();
     } else {
       playMoveSound();
-    }
-
-    if (game.isCheckmate() || game.isDraw()) {
-      setTimeout(playEndSound, 150);
-    } else if (game.inCheck()) {
-      setTimeout(playCheckSound, 120);
     }
 
     setLastMove({ from: move.from, to: move.to });
