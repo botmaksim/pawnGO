@@ -30,10 +30,13 @@ compile_commands.json
 .DS_Store
 
 # Logs & Engine specific
-engine/engine.log
-server/engine.log
+*.log
+engine/*.log
+server/*.log
 tournament.log
 games/*.pgn
+engine/scripts/games/
+*.png
 
 engine/tests
 tests

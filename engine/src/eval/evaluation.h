@@ -16,6 +16,7 @@ namespace Evaluation {
     extern thread_local NNUEdata* nnue_stack;
     void allocate_nnue_stack();
     int evaluate_incremental(const BoardState& pos, int ply);
+    int adjust_eval(int score, const BoardState& pos);
 
     extern const int pawn_score[64];
     extern const int knight_score[64];

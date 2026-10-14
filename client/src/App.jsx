@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Chess } from 'chess.js';
 import { Chessboard } from 'react-chessboard';
 import EvalBar from './EvalBar';
 import { classifyMove, getAnnotationDescription } from './utils/analysis';
+import { playMoveSound, playCaptureSound, playCheckSound, playCastleSound, playEndSound, isSoundEnabled, setSoundEnabled, getMasterVolume, setMasterVolume } from './utils/sound';
 
 // Helper to generate IDs
 const genId = () => Math.random().toString(36).substr(2, 9);
@@ -17,7 +18,40 @@ function App() {
   const nodesRef = useRef(nodes);
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
   const [currentNodeId, setCurrentNodeId] = useState('root');
+  const currentNodeIdRef = useRef(currentNodeId);
+  useEffect(() => { currentNodeIdRef.current = currentNodeId; }, [currentNodeId]);
   
+  // Last move highlight & Sound
+  const [lastMove, setLastMove] = useState(null);
+  const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
+  const [volume, setVolume] = useState(() => getMasterVolume());
+  const toggleSound = () => {
+    setSoundOn(prev => {
+      const next = !prev;
+      setSoundEnabled(next);
+      if (next) {
+        if (volume === 0) {
+          setVolume(0.8);
+          setMasterVolume(0.8);
+        }
+        playMoveSound();
+      }
+      return next;
+    });
+  };
+  const handleVolumeChange = (newVal) => {
+    const val = parseFloat(newVal);
+    setVolume(val);
+    setMasterVolume(val);
+    if (val > 0 && !soundOn) {
+      setSoundOn(true);
+      setSoundEnabled(true);
+    } else if (val === 0 && soundOn) {
+      setSoundOn(false);
+      setSoundEnabled(false);
+    }
+  };
+
   // Modes
   const [isSetupMode, setIsSetupMode] = useState(false);
   const [setupFenInput, setSetupFenInput] = useState(chessHelper.fen());
@@ -29,10 +63,19 @@ function App() {
   const [isShaking, setIsShaking] = useState(false);
   
   // Engine States
+  const maxHardwareThreads = typeof navigator !== 'undefined' ? Math.min(navigator.hardwareConcurrency || 4, 16) : 4;
   const [engineReady, setEngineReady] = useState(false);
   const [pvLines, setPvLines] = useState({}); // map of multipv index -> line object
   const [multiPvCount, setMultiPvCount] = useState(3);
   const [analysisDepth, setAnalysisDepth] = useState(15);
+  const [engineThreads, setEngineThreads] = useState(() => {
+    try {
+      const saved = localStorage.getItem('pawngo_threads');
+      return saved ? parseInt(saved, 10) : 2;
+    } catch (e) {
+      return 2;
+    }
+  });
   const isEngineSearchingRef = useRef(false);
   const pendingGoRef = useRef(null);
   const ignoringStaleInfoRef = useRef(false);
@@ -48,20 +91,83 @@ function App() {
   const updatePendingRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
   const wsRef = useRef(null);
+  const workerRef = useRef(null);
+  const reinitTimerRef = useRef(null);
+  const retryCountRef = useRef(0);
+  const tempGameRef = useRef(new Chess());
+  const sanGameRef = useRef(new Chess());
 
   // New UI features
   const [showArrows, setShowArrows] = useState(true);
   const [playMode, setPlayMode] = useState('Analysis');
+
+  // Helper to construct UCI position command with full history
+  const getUciPosition = (treeNodes, targetNodeId, fallbackFen = null) => {
+    if (!targetNodeId || !treeNodes || !treeNodes[targetNodeId]) {
+      if (fallbackFen) {
+        return `position fen ${fallbackFen}`;
+      }
+      return 'position startpos';
+    }
+    const path = [];
+    let curr = treeNodes[targetNodeId];
+    while (curr && curr.parentId) {
+      path.unshift(curr);
+      curr = treeNodes[curr.parentId];
+    }
+    const rootNode = curr;
+    let posCmd = '';
+    if (rootNode && rootNode.fen && rootNode.fen !== 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') {
+      posCmd = `position fen ${rootNode.fen}`;
+    } else {
+      posCmd = `position startpos`;
+    }
+    const moves = [];
+    for (const n of path) {
+      const uciStr = n.uci || (n.from && n.to ? `${n.from}${n.to}${n.promotion || ''}` : null);
+      if (uciStr) moves.push(uciStr);
+    }
+    if (moves.length > 0) {
+      posCmd += ` moves ${moves.join(' ')}`;
+    }
+    return posCmd;
+  };
+
   // Derived state
   const currentNode = nodes[currentNodeId];
   const currentFen = isSetupMode ? setupFenInput : currentNode.fen;
-  const game = new Chess();
-  // Safe load
-  try {
-    game.load(currentFen);
-  } catch (e) {
-    // ignore invalid fen in setup
-  }
+
+  // Reconstruct game with full move history so chess.js can track threefold repetition & 50-move rule
+  const game = useMemo(() => {
+    if (isSetupMode) {
+      const g = new Chess();
+      try { g.load(setupFenInput); } catch (e) {}
+      return g;
+    }
+    const path = [];
+    let curr = nodes[currentNodeId];
+    while (curr && curr.parentId) {
+      path.unshift(curr);
+      curr = nodes[curr.parentId];
+    }
+    const rootNode = curr;
+    const g = new Chess();
+    if (rootNode && rootNode.fen && rootNode.fen !== 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') {
+      try { g.load(rootNode.fen); } catch (e) { g.load('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'); }
+    }
+    for (const n of path) {
+      if (n.uci) {
+        const from = n.uci.substring(0, 2);
+        const to = n.uci.substring(2, 4);
+        const promotion = n.uci.length > 4 ? n.uci[4] : undefined;
+        try { g.move({ from, to, promotion }); } catch (e) { try { g.move(n.san); } catch (e2) {} }
+      } else if (n.san && n.san !== 'Start') {
+        try { g.move(n.san); } catch (e) {}
+      }
+    }
+    return g;
+  }, [nodes, currentNodeId, isSetupMode, setupFenInput]);
+
   const turnColor = game.turn() === 'w' ? 'White' : 'Black';
 
   const playModeRef = useRef(playMode);
@@ -70,20 +176,45 @@ function App() {
   useEffect(() => { 
     playModeRef.current = playMode; 
     
+    if (wsRef.current && wsRef.current.readyState === 1) {
+      if (playMode !== 'Analysis') {
+        // Full maximum strength for play against engine: single line for full search depth
+        wsRef.current.send(`setoption name MultiPV value 1`);
+        wsRef.current.send(`setoption name Threads value ${maxHardwareThreads}`);
+      } else {
+        // Standard threads & MultiPV for analysis
+        wsRef.current.send(`setoption name MultiPV value ${multiPvCount}`);
+        wsRef.current.send(`setoption name Threads value ${engineThreads}`);
+      }
+    }
+
     // If we just switched to playing as the side whose turn it is, force the engine to think!
     if (playMode !== 'Analysis' && !isSetupMode) {
       if (prevPlayModeRef.current !== playMode) {
+          if (playMode === 'Play as Black') {
+              setBoardOrientation('black');
+          } else if (playMode === 'Play as White') {
+              setBoardOrientation('white');
+          }
           const tempGame = new Chess();
-          tempGame.load(currentFen);
+          try { tempGame.load(currentFenRef.current); } catch(e) {}
           const currentTurn = tempGame.turn();
           if ((playMode === 'Play as White' && currentTurn === 'b') ||
               (playMode === 'Play as Black' && currentTurn === 'w')) {
-              requestAnalysis(currentFen);
+              requestAnalysis(currentFenRef.current);
+          } else {
+              // It's player's turn: don't let engine search in background
+              if (wsRef.current && isEngineSearchingRef.current) {
+                  wsRef.current.send('stop');
+              }
           }
       }
+    } else if (playMode === 'Analysis' && prevPlayModeRef.current !== 'Analysis') {
+      // Switched back to Analysis: resume analysis
+      requestAnalysis(currentFenRef.current);
     }
     prevPlayModeRef.current = playMode;
-  }, [playMode, currentFen, isSetupMode]);
+  }, [playMode, isSetupMode, engineThreads, maxHardwareThreads, multiPvCount]);
   const [pendingEngineMove, setPendingEngineMove] = useState(null);
 
 
@@ -98,25 +229,41 @@ function App() {
       const from = pendingEngineMove.substring(0, 2);
       const to = pendingEngineMove.substring(2, 4);
       const promotion = pendingEngineMove.length > 4 ? pendingEngineMove[4] : undefined;
-      handleMove({ from, to, promotion });
+      const success = handleMove({ from, to, promotion });
+      if (!success) {
+        console.warn(`[Engine] Play mode move failed: ${pendingEngineMove} on FEN: ${game.fen()}`);
+      }
       setPendingEngineMove(null);
     }
   }, [pendingEngineMove]);
 
   useEffect(() => {
-    let worker;
+    let active = true;
+
     const initWorker = () => {
-      worker = new Worker('wasm/engineWorker_v3.js?v=8');
+      if (!active) return;
+      if (workerRef.current) {
+        try { workerRef.current.terminate(); } catch (e) {}
+        workerRef.current = null;
+      }
+
+      const worker = new Worker('wasm/engineWorker_v3.js?v=10');
+      workerRef.current = worker;
       
       worker.onerror = (err) => {
-        console.error("Worker error, restarting...", err);
-        worker.terminate();
+        console.error("Worker error:", err);
+        if (!active) return;
+        try { worker.terminate(); } catch (e) {}
+        workerRef.current = null;
         setEngineReady(false);
-        isEngineSearchingRef.current = false; // Reset so analysis restarts
-        setTimeout(initWorker, 500); // Give it a short delay
+        isEngineSearchingRef.current = false;
+        if (retryCountRef.current < 3) {
+          retryCountRef.current += 1;
+          clearTimeout(reinitTimerRef.current);
+          reinitTimerRef.current = setTimeout(initWorker, 1000);
+        }
       };
 
-      // Simulate WebSocket API for existing code
       wsRef.current = {
         readyState: 1, // OPEN
         isTablebasePending: null,
@@ -126,55 +273,86 @@ function App() {
                 const pieceCount = fen.split(' ')[0].replace(/[^a-zA-Z]/g, '').length;
                 if (pieceCount <= 5) {
                     wsRef.current.isTablebasePending = fen;
-                    return; // Hold the command
+                    return;
                 }
                 wsRef.current.isTablebasePending = null;
             }
             if (cmd.startsWith('go ') && wsRef.current.isTablebasePending) {
                 const fen = wsRef.current.isTablebasePending;
-                fetch(`https://tablebase.lichess.ovh/standard?fen=${encodeURIComponent(fen)}`)
-                    .then(res => res.json())
+                // 1. Try local in-memory Syzygy daemon first:
+                fetch(`/api/tablebase?fen=${encodeURIComponent(fen)}`)
+                    .then(res => {
+                        if (!res.ok) throw new Error('Local tablebase miss');
+                        return res.json();
+                    })
                     .then(data => {
-                        if (data.moves && data.moves.length > 0) {
-                            const bestmove = data.moves[0].uci;
-                            if (wsRef.current.onmessage) {
-                                wsRef.current.onmessage({ data: `info depth 64 score cp 19999 pv ${bestmove}` });
-                                wsRef.current.onmessage({ data: `bestmove ${bestmove}` });
+                        if (data && data.bestmove && data.bestmove !== 'none') {
+                            return { bestmove: data.bestmove };
+                        }
+                        throw new Error('Local tablebase miss');
+                    })
+                    .catch(() => {
+                        // 2. Fall back to lichess.ovh:
+                        return fetch(`https://tablebase.lichess.ovh/standard?fen=${encodeURIComponent(fen)}`)
+                            .then(res => res.json())
+                            .then(data => {
+                                if (data && data.moves && data.moves.length > 0) {
+                                    return { bestmove: data.moves[0].uci };
+                                }
+                                return null;
+                            });
+                    })
+                    .then(result => {
+                        if (result && result.bestmove) {
+                            if (wsRef.current && wsRef.current.onmessage) {
+                                wsRef.current.onmessage({ data: `info depth 64 score cp 19999 pv ${result.bestmove}` });
+                                wsRef.current.onmessage({ data: `bestmove ${result.bestmove}` });
                             }
                             wsRef.current.isTablebasePending = null;
                         } else {
                             wsRef.current.isTablebasePending = null;
-                            worker.postMessage(`position fen ${fen}`);
-                            worker.postMessage(cmd);
+                            if (workerRef.current) {
+                                workerRef.current.postMessage(`position fen ${fen}`);
+                                workerRef.current.postMessage(cmd);
+                            }
                         }
                     })
-                    .catch(err => {
-                        console.error('Tablebase error', err);
+                    .catch(() => {
                         wsRef.current.isTablebasePending = null;
-                        worker.postMessage(`position fen ${fen}`);
-                        worker.postMessage(cmd);
+                        if (workerRef.current) {
+                            workerRef.current.postMessage(`position fen ${fen}`);
+                            workerRef.current.postMessage(cmd);
+                        }
                     });
                 return;
             }
             if (cmd === 'stop' && wsRef.current.isTablebasePending) {
-                return; // Nothing to stop on the server
+                return;
             }
-            console.log("[Engine Send]:", cmd);
-            worker.postMessage(cmd);
+            if (workerRef.current) {
+                workerRef.current.postMessage(cmd);
+            }
         },
-        close: () => worker.terminate()
+        close: () => {
+          if (workerRef.current) {
+            try { workerRef.current.terminate(); } catch (e) {}
+            workerRef.current = null;
+          }
+        }
       };
 
       worker.onmessage = (event) => {
+        if (!active) return;
         const msg = event.data;
         if (msg === 'isready') {
-            console.log('Engine is ready (Wasm)');
+            retryCountRef.current = 0;
             setEngineReady(true);
             wsRef.current.send('uci');
+            wsRef.current.send(`setoption name Threads value ${engineThreads}`);
             return;
         }
         
-        if (wsRef.current.onmessage) {
+        if (wsRef.current && wsRef.current.onmessage) {
             wsRef.current.onmessage({ data: msg });
         }
       };
@@ -184,12 +362,23 @@ function App() {
 
     wsRef.current.onmessage = (event) => {
       const msg = event.data;
-      // DEBUG: Log all engine messages
-      console.log("[Engine Msg]:", msg);
+      if (typeof msg !== 'string') return;
       
       if (msg.startsWith('info')) {
         if (ignoringStaleInfoRef.current) return;
         
+        if (msg.includes('Book move') || msg.includes('book 1')) {
+          latestPvLinesRef.current = {
+            ...latestPvLinesRef.current,
+            '1': {
+              depth: 'Book',
+              score: 'Book',
+              pv: 'Book',
+              san: 'Book'
+            }
+          };
+        }
+
         const depthMatch = msg.match(/depth (\d+)/);
         const multipvMatch = msg.match(/multipv (\d+)/) || [null, '1'];
         const scoreCpMatch = msg.match(/score cp (-?\d+)/);
@@ -201,8 +390,12 @@ function App() {
           const multipv = multipvMatch[1];
           let scoreStr = '';
           
-          const tempGame = new Chess();
-          try { tempGame.load(isAnalyzingGameRef.current && currentAnalyzeNodeIdRef.current ? nodesRef.current[currentAnalyzeNodeIdRef.current].fen : currentFenRef.current); } catch(e) {}
+          const tempGame = tempGameRef.current;
+          try { 
+            tempGame.load(isAnalyzingGameRef.current && currentAnalyzeNodeIdRef.current 
+              ? nodesRef.current[currentAnalyzeNodeIdRef.current].fen 
+              : currentFenRef.current); 
+          } catch(e) {}
           const isBlackTurn = tempGame.turn() === 'b';
 
           if (bookMatch) {
@@ -231,8 +424,10 @@ function App() {
 
           let sanPv = pvMatch[1];
           try {
-              const sanGame = new Chess();
-              try { sanGame.load(isAnalyzingGameRef.current && currentAnalyzeNodeIdRef.current ? nodesRef.current[currentAnalyzeNodeIdRef.current].fen : currentFenRef.current); } catch(e) {}
+              const sanGame = sanGameRef.current;
+              sanGame.load(isAnalyzingGameRef.current && currentAnalyzeNodeIdRef.current 
+                ? nodesRef.current[currentAnalyzeNodeIdRef.current].fen 
+                : currentFenRef.current);
               const rawPv = pvMatch[1].trim().split(' ');
               const newSanMoves = [];
               for (const move of rawPv) {
@@ -248,13 +443,11 @@ function App() {
                           newSanMoves.push(m.san);
                       }
                   } catch (err) {
-                      // Move is illegal in current FEN, just stop parsing the PV here.
                       break;
                   }
               }
               sanPv = newSanMoves.join(' ');
           } catch(e) {
-              // Stale info depth for previous fen, ignore it
               return;
           }
 
@@ -283,6 +476,7 @@ function App() {
             const fen = pendingGoRef.current.fen;
             const depth = pendingGoRef.current.depth;
             const isBotTurn = pendingGoRef.current.isBotTurn;
+            const posCmd = pendingGoRef.current.posCmd || (isSetupMode ? `position fen ${fen}` : getUciPosition(nodesRef.current, currentNodeIdRef.current, fen));
             pendingGoRef.current = null;
             ignoringStaleInfoRef.current = false;
             
@@ -291,9 +485,17 @@ function App() {
             
             isEngineSearchingRef.current = true;
             isBotTurnSearchRef.current = isBotTurn;
-            wsRef.current.send(`position fen ${fen}`);
+
+            const pieceCount = fen.split(' ')[0].replace(/[^a-zA-Z]/g, '').length;
+            if (pieceCount <= 5) {
+                wsRef.current.isTablebasePending = fen;
+            } else {
+                wsRef.current.isTablebasePending = null;
+            }
+
+            wsRef.current.send(posCmd);
             if (isBotTurn) {
-                wsRef.current.send(`go movetime 3000`);
+                wsRef.current.send(`go movetime 3200`);
             } else {
                 wsRef.current.send(`go depth ${depth}`);
             }
@@ -301,11 +503,20 @@ function App() {
         }
 
         if (isAnalyzingGameRef.current && currentAnalyzeNodeIdRef.current) {
+          const analyzedId = currentAnalyzeNodeIdRef.current;
+          let analyzedPvs = { ...latestPvLinesRef.current };
+          const isBook = Object.keys(analyzedPvs).length === 0 || analyzedPvs['1']?.score === 'Book' || msg.includes('Book');
+          if (isBook) {
+            analyzedPvs = {
+              '1': { depth: 'Book', score: 'Book', pv: msg.split(' ')[1] || '', san: '' }
+            };
+          }
           setNodes(prev => ({
             ...prev,
-            [currentAnalyzeNodeIdRef.current]: {
-              ...prev[currentAnalyzeNodeIdRef.current],
-              pvLines: { ...latestPvLinesRef.current }
+            [analyzedId]: {
+              ...prev[analyzedId],
+              pvLines: analyzedPvs,
+              isBook: isBook
             }
           }));
           processNextAnalysisNode();
@@ -315,7 +526,12 @@ function App() {
               if (isBotTurnSearchRef.current) {
                   const bestmove = msg.split(' ')[1];
                   if (bestmove && bestmove !== '(none)') {
-                      setPendingEngineMove(bestmove);
+                      // Smooth natural delay for opening book moves and bot moves:
+                      const isBook = latestPvLinesRef.current['1']?.score === 'Book' || msg.includes('Book');
+                      const delay = isBook ? 400 : 120;
+                      setTimeout(() => {
+                          setPendingEngineMove(bestmove);
+                      }, delay);
                   }
               }
           } catch (e) {
@@ -326,6 +542,8 @@ function App() {
     };
 
     return () => {
+      active = false;
+      clearTimeout(reinitTimerRef.current);
       if (wsRef.current) wsRef.current.close();
     };
   }, []); // Run ONLY ONCE!
@@ -338,11 +556,21 @@ function App() {
     }
   }, [multiPvCount, engineReady]);
 
+  useEffect(() => {
+    if (engineReady && wsRef.current && wsRef.current.readyState === 1) {
+       wsRef.current.send(`setoption name Threads value ${engineThreads}`);
+       try {
+         localStorage.setItem('pawngo_threads', engineThreads.toString());
+       } catch (e) {}
+    }
+  }, [engineThreads, engineReady]);
+
   const processNextAnalysisNode = () => {
     if (analyzeQueueRef.current.length === 0) {
       // Done analyzing! Now classify moves
       setIsAnalyzingGame(false);
       isAnalyzingGameRef.current = false;
+      currentAnalyzeNodeIdRef.current = null;
       setNodes(prevNodes => {
         const nextNodes = { ...prevNodes };
         // Traverse all nodes that have parents
@@ -358,20 +586,47 @@ function App() {
         }
         return nextNodes;
       });
-      // Resume normal analysis for current node
-      requestAnalysis(nodesRef.current[currentNodeId].fen);
+      // Restore threads after full game analysis
+      if (wsRef.current && wsRef.current.readyState === 1) {
+        const restoreThreads = playModeRef.current !== 'Analysis' ? maxHardwareThreads : engineThreads;
+        wsRef.current.send(`setoption name Threads value ${restoreThreads}`);
+      }
+      requestAnalysis(nodesRef.current[currentNodeIdRef.current].fen, null, currentNodeIdRef.current);
       return;
     }
     const nextId = analyzeQueueRef.current.shift();
     currentAnalyzeNodeIdRef.current = nextId;
     setAnalyzeProgress(p => ({ ...p, current: p.total - analyzeQueueRef.current.length }));
     
-    requestAnalysis(nodesRef.current[nextId].fen);
+    // Depth 14 for swift and accurate game review
+    requestAnalysis(nodesRef.current[nextId].fen, 14, nextId);
   };
 
   const startFullGameAnalysis = () => {
-    // Collect all nodes in the tree
-    const queue = Object.keys(nodesRef.current);
+    // Utilize maximum hardware threads for full game analysis
+    if (wsRef.current && wsRef.current.readyState === 1) {
+      wsRef.current.send(`setoption name Threads value ${maxHardwareThreads}`);
+    }
+
+    // Collect all nodes in topological tree order (root first, then children)
+    const queue = [];
+    const visited = new Set();
+    const dfs = (id) => {
+      if (visited.has(id)) return;
+      visited.add(id);
+      queue.push(id);
+      const node = nodesRef.current[id];
+      if (node && node.children) {
+        for (const childId of node.children) {
+          dfs(childId);
+        }
+      }
+    };
+    dfs('root');
+    for (const id in nodesRef.current) {
+      if (!visited.has(id)) queue.push(id);
+    }
+
     analyzeQueueRef.current = queue;
     setAnalyzeProgress({ current: 0, total: queue.length });
     setIsAnalyzingGame(true);
@@ -384,30 +639,55 @@ function App() {
     analyzeQueueRef.current = [];
     setIsAnalyzingGame(false);
     isAnalyzingGameRef.current = false;
-    
-    requestAnalysis(nodesRef.current[currentNodeId].fen); // Resume normal analysis
+    currentAnalyzeNodeIdRef.current = null;
+    if (wsRef.current && wsRef.current.readyState === 1) {
+      wsRef.current.send('stop');
+      const restoreThreads = playModeRef.current !== 'Analysis' ? maxHardwareThreads : engineThreads;
+      wsRef.current.send(`setoption name Threads value ${restoreThreads}`);
+    }
+    requestAnalysis(nodesRef.current[currentNodeIdRef.current].fen, null, currentNodeIdRef.current);
   };
 
-  const requestAnalysis = (fen, overrideDepth = null) => {
+  const requestAnalysis = (fen, overrideDepth = null, targetNodeId = null) => {
     const depthToUse = overrideDepth !== null ? overrideDepth : analysisDepth;
+    const nodeId = targetNodeId || currentNodeIdRef.current;
+    const posCmd = isSetupMode ? `position fen ${fen}` : getUciPosition(nodesRef.current, nodeId, fen);
     
     let isBotTurn = false;
     if (playModeRef.current !== 'Analysis') {
         try {
             const tempGame = new Chess();
             tempGame.load(fen);
+            if (tempGame.isGameOver()) {
+                if (wsRef.current && wsRef.current.readyState === 1 && isEngineSearchingRef.current) {
+                    wsRef.current.send('stop');
+                }
+                return;
+            }
             const turn = tempGame.turn();
             if ((playModeRef.current === 'Play as White' && turn === 'b') || 
                 (playModeRef.current === 'Play as Black' && turn === 'w')) {
                 isBotTurn = true;
             }
         } catch (e) {}
+
+        if (!isBotTurn && !isAnalyzingGameRef.current) {
+            // It's player's turn against computer: never run analysis or waste CPU
+            if (wsRef.current && wsRef.current.readyState === 1 && isEngineSearchingRef.current) {
+                wsRef.current.send('stop');
+            }
+            return;
+        }
     }
 
     if (wsRef.current && wsRef.current.readyState === 1) {
       if (isEngineSearchingRef.current) {
-        pendingGoRef.current = { fen, depth: depthToUse, isBotTurn };
+        pendingGoRef.current = { fen, depth: depthToUse, isBotTurn, posCmd };
         ignoringStaleInfoRef.current = true;
+        if (!targetNodeId || !nodesRef.current[targetNodeId]?.pvLines) {
+          latestPvLinesRef.current = {};
+          setPvLines({});
+        }
         wsRef.current.send('stop');
       } else {
         latestPvLinesRef.current = {};
@@ -415,9 +695,18 @@ function App() {
         isEngineSearchingRef.current = true;
         ignoringStaleInfoRef.current = false;
         isBotTurnSearchRef.current = isBotTurn;
-        wsRef.current.send(`position fen ${fen}`);
+
+        const pieceCount = fen.split(' ')[0].replace(/[^a-zA-Z]/g, '').length;
+        if (pieceCount <= 5) {
+            wsRef.current.isTablebasePending = fen;
+        } else {
+            wsRef.current.isTablebasePending = null;
+        }
+
+        wsRef.current.send(posCmd);
         if (isBotTurn) {
-            wsRef.current.send(`go movetime 3000`);
+            // 0 depth limits, max strength move time (3.2 seconds)
+            wsRef.current.send(`go movetime 3200`);
         } else {
             wsRef.current.send(`go depth ${depthToUse}`);
         }
@@ -453,51 +742,100 @@ function App() {
 
     if (move === null) return false;
 
+    // Play sounds
+    if (move.captured) {
+      playCaptureSound();
+    } else if (move.flags && (move.flags.includes('k') || move.flags.includes('q'))) {
+      playCastleSound();
+    } else {
+      playMoveSound();
+    }
+
+    if (game.isCheckmate() || game.isDraw()) {
+      setTimeout(playEndSound, 150);
+    } else if (game.inCheck()) {
+      setTimeout(playCheckSound, 120);
+    }
+
+    setLastMove({ from: move.from, to: move.to });
+
+    const parentId = currentNodeIdRef.current;
+    const parentNode = nodesRef.current[parentId] || nodesRef.current['root'] || { ply: 0, children: [] };
+
     // Check if this move already exists as a child
-    const existingChildId = currentNode.children.find(childId => nodes[childId].san === move.san);
+    const existingChildId = (parentNode.children || []).find(childId => nodesRef.current[childId]?.san === move.san);
     
+    let activeId = existingChildId;
     if (existingChildId) {
       setCurrentNodeId(existingChildId);
+      currentNodeIdRef.current = existingChildId;
     } else {
       // Create new branch
       const newId = genId();
-      
-      // Remove dummy annotation logic to avoid false blunders
-      let annotation = '';
+      activeId = newId;
+
+      const uci = move.from + move.to + (move.promotion || '');
 
       const newNode = {
         id: newId,
         fen: game.fen(),
         san: move.san,
-        parentId: currentNodeId,
+        uci: uci,
+        from: move.from,
+        to: move.to,
+        parentId: parentId,
         children: [],
-        annotation,
-        ply: currentNode.ply + 1
+        annotation: '',
+        ply: (parentNode.ply || 0) + 1
       };
 
-      setNodes(prev => ({
-        ...prev,
-        [currentNodeId]: { ...prev[currentNodeId], children: [...prev[currentNodeId].children, newId] },
+      const updatedNodes = {
+        ...nodesRef.current,
+        [parentId]: { ...parentNode, children: [...(parentNode.children || []), newId] },
         [newId]: newNode
-      }));
+      };
+      nodesRef.current = updatedNodes;
+      setNodes(updatedNodes);
       setCurrentNodeId(newId);
+      currentNodeIdRef.current = newId;
     }
 
-    // Reset Engine PVs and request analysis
+    // Reset Engine PVs and clear stale arrows immediately
+    latestPvLinesRef.current = {};
     setPvLines({});
-    requestAnalysis(game.fen());
+    requestAnalysis(game.fen(), null, activeId);
 
     setMoveFrom('');
     setOptionSquares({});
     return true;
   }
 
+  // Disable drag if it's engine's turn or opponent's pieces
+  const isEngineTurn = !isSetupMode && playMode !== 'Analysis' && (
+    (playMode === 'Play as White' && game.turn() === 'b') ||
+    (playMode === 'Play as Black' && game.turn() === 'w')
+  );
+
+  const isDraggablePiece = ({ piece }) => {
+    if (isSetupMode) return true;
+    if (playMode === 'Analysis') return piece[0] === game.turn();
+    if (isEngineTurn) return false;
+    if (playMode === 'Play as White') return piece[0] === 'w' && game.turn() === 'w';
+    if (playMode === 'Play as Black') return piece[0] === 'b' && game.turn() === 'b';
+    return false;
+  };
+
   function onSquareClick(square) {
     if (isSetupMode) return;
+    if (isEngineTurn) return;
+    if (playMode === 'Play as White' && game.turn() !== 'w') return;
+    if (playMode === 'Play as Black' && game.turn() !== 'b') return;
 
     if (!moveFrom) {
       const hasPiece = game.get(square);
       if (hasPiece && hasPiece.color === game.turn()) {
+        if (playMode === 'Play as White' && hasPiece.color !== 'w') return;
+        if (playMode === 'Play as Black' && hasPiece.color !== 'b') return;
         setMoveFrom(square);
         getMoveOptions(square);
       }
@@ -515,6 +853,8 @@ function App() {
     if (!success) {
       const hasPiece = game.get(square);
       if (hasPiece && hasPiece.color === game.turn()) {
+          if (playMode === 'Play as White' && hasPiece.color !== 'w') return;
+          if (playMode === 'Play as Black' && hasPiece.color !== 'b') return;
           setMoveFrom(square);
           getMoveOptions(square);
       } else {
@@ -524,9 +864,10 @@ function App() {
   }
 
   function onDrop(sourceSquare, targetSquare, piece) {
+    if (isEngineTurn) return false;
     if (!isSetupMode && playMode !== 'Analysis') {
-      if (playMode === 'Play as White' && game.turn() === 'b') return false;
-      if (playMode === 'Play as Black' && game.turn() === 'w') return false;
+      if (playMode === 'Play as White' && (game.turn() !== 'w' || (piece && piece[0] !== 'w'))) return false;
+      if (playMode === 'Play as Black' && (game.turn() !== 'b' || (piece && piece[0] !== 'b'))) return false;
     }
 
     if (isSetupMode) {
@@ -564,12 +905,6 @@ function App() {
   function onPieceDropSetup(source, target, piece) {
      return onDrop(source, target, piece);
   }
-  
-  // Disable drag if it's engine's turn
-  const isEngineTurn = !isSetupMode && (
-    (playMode === 'Play as White' && game.turn() === 'b') ||
-    (playMode === 'Play as Black' && game.turn() === 'w')
-  );
 
   function triggerError() {
     setIsShaking(true);
@@ -579,11 +914,62 @@ function App() {
   }
 
   function jumpTo(id) {
+    if (!id || !nodesRef.current[id]) return;
     setCurrentNodeId(id);
-    requestAnalysis(nodes[id].fen);
+    currentNodeIdRef.current = id;
+    const n = nodesRef.current[id];
+    if (n && n.from && n.to) {
+      setLastMove({ from: n.from, to: n.to });
+    } else if (n && n.uci && n.uci.length >= 4) {
+      setLastMove({ from: n.uci.substring(0, 2), to: n.uci.substring(2, 4) });
+    } else {
+      setLastMove(null);
+    }
+    latestPvLinesRef.current = n && n.pvLines ? { ...n.pvLines } : {};
+    setPvLines(latestPvLinesRef.current);
+    requestAnalysis(n.fen, null, id);
     setMoveFrom('');
     setOptionSquares({});
   }
+
+  // Keyboard navigation for moves using arrow keys
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (['INPUT', 'TEXTAREA'].includes(e.target?.tagName) || e.target?.isContentEditable) {
+        return;
+      }
+      if (isSetupMode) return;
+
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        const curr = nodesRef.current[currentNodeIdRef.current];
+        if (curr && curr.parentId) {
+          jumpTo(curr.parentId);
+        }
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        const curr = nodesRef.current[currentNodeIdRef.current];
+        if (curr && curr.children && curr.children.length > 0) {
+          jumpTo(curr.children[0]);
+        }
+      } else if (e.key === 'ArrowUp' || e.key === 'Home') {
+        e.preventDefault();
+        jumpTo('root');
+      } else if (e.key === 'ArrowDown' || e.key === 'End') {
+        e.preventDefault();
+        let curr = nodesRef.current[currentNodeIdRef.current];
+        while (curr && curr.children && curr.children.length > 0) {
+          curr = nodesRef.current[curr.children[0]];
+        }
+        if (curr && curr.id) {
+          jumpTo(curr.id);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isSetupMode]);
 
   function resetGame() {
     const startFen = new Chess().fen();
@@ -591,11 +977,12 @@ function App() {
       'root': { id: 'root', fen: startFen, san: 'Start', parentId: null, children: [], evalStr: null, annotation: '', ply: 0 }
     });
     setCurrentNodeId('root');
+    setLastMove(null);
     latestPvLinesRef.current = {};
     setPvLines({});
     setMoveFrom('');
     setOptionSquares({});
-    requestAnalysis(startFen);
+    requestAnalysis(startFen, null, 'root');
   }
 
   function applySetup() {
@@ -609,12 +996,13 @@ function App() {
       'root': { id: 'root', fen: setupFenInput, san: 'Setup Position', parentId: null, children: [], evalStr: null, annotation: '', ply: 0 }
     });
     setCurrentNodeId('root');
+    setLastMove(null);
     latestPvLinesRef.current = {};
     setPvLines({});
     setMoveFrom('');
     setOptionSquares({});
     setIsSetupMode(false);
-    requestAnalysis(setupFenInput);
+    requestAnalysis(setupFenInput, null, 'root');
   }
 
   function toggleSetupMode() {
@@ -629,6 +1017,18 @@ function App() {
     }
   }
 
+  const getAnnotationClass = (anno) => {
+    if (anno === '📖') return 'anno-book';
+    if (anno === '!!') return 'anno-brilliant';
+    if (anno === '!') return 'anno-great';
+    if (anno === '★') return 'anno-best';
+    if (anno === '✓') return 'anno-good';
+    if (anno === '?!') return 'anno-inaccuracy';
+    if (anno === '?') return 'anno-mistake';
+    if (anno === '??') return 'anno-blunder';
+    return '';
+  };
+
   const renderMoves = (nodeId) => {
     const node = nodes[nodeId];
     if (!node || node.children.length === 0) return null;
@@ -641,12 +1041,7 @@ function App() {
     const isWhite = mainChild.ply % 2 !== 0;
     const numStr = isWhite ? `${moveNum}. ` : (node.id === 'root' ? `${moveNum}... ` : ' ');
     
-    // Add visual styling for annotations
-    let annotationClass = '';
-    if (mainChild.annotation === '!!') annotationClass = 'anno-brilliant';
-    else if (mainChild.annotation === '!') annotationClass = 'anno-good';
-    else if (mainChild.annotation === '??') annotationClass = 'anno-blunder';
-    else if (mainChild.annotation === '?!') annotationClass = 'anno-inaccuracy';
+    const annotationClass = getAnnotationClass(mainChild.annotation);
 
     return (
       <span key={mainChildId}>
@@ -655,7 +1050,7 @@ function App() {
           onClick={() => jumpTo(mainChildId)}
         >
           {numStr}{mainChild.san}{mainChild.annotation}
-        </span>
+        </span>{' '}
         
         {variations.length > 0 && (
           <span className="variations-container">
@@ -665,9 +1060,7 @@ function App() {
                const vIsWhite = vChild.ply % 2 !== 0;
                const vNumStr = vIsWhite ? `${vMoveNum}. ` : `${vMoveNum}... `;
                
-               let vAnnotationClass = '';
-               if (vChild.annotation === '!!') vAnnotationClass = 'anno-brilliant';
-               else if (vChild.annotation === '??') vAnnotationClass = 'anno-blunder';
+               const vAnnotationClass = getAnnotationClass(vChild.annotation);
 
                return (
                 <span key={varId} className="variation-block">
@@ -715,109 +1108,253 @@ function App() {
     updateSetupFen(2, newCastling || '-');
   }
 
-  // Find king square if in check
-  let checkSquare = null;
-  if (!isSetupMode && game.inCheck()) {
-    const board = game.board();
-    for (let r = 0; r < 8; r++) {
-      for (let c = 0; c < 8; c++) {
-        if (board[r][c] && board[r][c].type === 'k' && board[r][c].color === game.turn()) {
-          checkSquare = String.fromCharCode(97 + c) + (8 - r);
+  // Memoized custom styles for square highlights & check & last move
+  const customStyles = useMemo(() => {
+    const styles = {};
+
+    // 1. Highlight last move (from & to)
+    if (!isSetupMode && lastMove && lastMove.from && lastMove.to) {
+      styles[lastMove.from] = {
+        backgroundColor: 'rgba(205, 210, 106, 0.45)'
+      };
+      styles[lastMove.to] = {
+        backgroundColor: 'rgba(205, 210, 106, 0.55)'
+      };
+    }
+
+    // 2. Click option squares
+    Object.keys(optionSquares).forEach(sq => {
+      styles[sq] = {
+        ...styles[sq],
+        ...optionSquares[sq]
+      };
+    });
+
+    // 3. Red glow on king in check
+    if (!isSetupMode && game.inCheck()) {
+      const board = game.board();
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          if (board[r][c] && board[r][c].type === 'k' && board[r][c].color === game.turn()) {
+            const checkSquare = String.fromCharCode(97 + c) + (8 - r);
+            styles[checkSquare] = {
+              ...styles[checkSquare],
+              background: 'radial-gradient(circle, rgba(255,0,0,0.8), rgba(255,0,0,0) 60%)'
+            };
+          }
         }
       }
     }
-  }
 
-  const customStyles = { ...optionSquares };
-  if (checkSquare) {
-    customStyles[checkSquare] = {
-      background: 'radial-gradient(circle, rgba(255,0,0,0.8), rgba(255,0,0,0) 60%)'
-    };
-  }
+    return styles;
+  }, [optionSquares, isSetupMode, currentFen, lastMove]);
 
-  // Annotation overlay calculation
-  let annotationOverlay = null;
-  if (!isSetupMode && currentNode.annotation) {
-    // Determine the target square from SAN or move history
-    // Since chess.js move history isn't directly exposed for the node,
-    // we can parse the move from the FEN or we could have stored 'to' square.
-    // Let's store 'to' square in handleMove next time, but for now we can compute it
-    // by comparing currentFen and parent fen, or just parsing SAN roughly.
-    // A quick hack: extract the last 2 chars if it's a standard move
+  // Memoized annotation overlay
+  const annotationOverlay = useMemo(() => {
+    if (isSetupMode || !currentNode.annotation) return null;
     const san = currentNode.san;
-    const match = san.match(/[a-h][1-8]/);
-    if (match) {
-      const sq = match[0];
-      const files = ['a','b','c','d','e','f','g','h'];
-      const fIndex = files.indexOf(sq[0]);
-      const rIndex = parseInt(sq[1], 10) - 1;
-      
-      const x = boardOrientation === 'white' ? fIndex : 7 - fIndex;
-      const y = boardOrientation === 'white' ? 7 - rIndex : rIndex;
-      
-      let badgeColor = '#888';
-      let badgeText = currentNode.annotation;
-      if (badgeText === '!!') badgeColor = '#1baca6';
-      else if (badgeText === '??') badgeColor = '#e53935';
-      else if (badgeText === '!') badgeColor = '#5c8bb0';
-      else if (badgeText === '?!') badgeColor = '#e58e26';
+    const match = san ? san.match(/[a-h][1-8]/) : null;
+    if (!match) return null;
 
-      annotationOverlay = (
+    const sq = match[0];
+    const files = ['a','b','c','d','e','f','g','h'];
+    const fIndex = files.indexOf(sq[0]);
+    const rIndex = parseInt(sq[1], 10) - 1;
+    
+    const x = boardOrientation === 'white' ? fIndex : 7 - fIndex;
+    const y = boardOrientation === 'white' ? 7 - rIndex : rIndex;
+    
+    let badgeColor = '#888';
+    let badgeText = currentNode.annotation;
+    if (badgeText === '📖') badgeColor = '#85a947';
+    else if (badgeText === '!!') badgeColor = '#1baca6';
+    else if (badgeText === '!') badgeColor = '#5c8bb0';
+    else if (badgeText === '★') badgeColor = '#81b64c';
+    else if (badgeText === '✓') badgeColor = '#87ab63';
+    else if (badgeText === '?!') badgeColor = '#f5b041';
+    else if (badgeText === '?') badgeColor = '#eb984e';
+    else if (badgeText === '??') badgeColor = '#e53935';
+
+    return (
+      <div style={{
+        position: 'absolute',
+        left: `${(x * 100) / 8}%`,
+        top: `${(y * 100) / 8}%`,
+        width: '12.5%',
+        height: '12.5%',
+        pointerEvents: 'none',
+        display: 'flex',
+        justifyContent: 'flex-end',
+        alignItems: 'flex-start'
+      }}>
         <div style={{
-          position: 'absolute',
-          left: `${(x * 100) / 8}%`,
-          top: `${(y * 100) / 8}%`,
-          width: '12.5%',
-          height: '12.5%',
-          pointerEvents: 'none',
-          display: 'flex',
-          justifyContent: 'flex-end',
-          alignItems: 'flex-start'
+          background: badgeColor,
+          color: '#fff',
+          fontWeight: 'bold',
+          fontSize: '1rem',
+          padding: '2px 6px',
+          borderRadius: '50%',
+          transform: 'translate(30%, -30%)',
+          boxShadow: '0 2px 5px rgba(0,0,0,0.5)'
         }}>
-          <div style={{
-            background: badgeColor,
-            color: '#fff',
-            fontWeight: 'bold',
-            fontSize: '1rem',
-            padding: '2px 6px',
-            borderRadius: '50%',
-            transform: 'translate(30%, -30%)',
-            boxShadow: '0 2px 5px rgba(0,0,0,0.5)'
-          }}>
-            {badgeText}
-          </div>
+          {badgeText}
         </div>
-      );
-    }
-  }
-
-
+      </div>
+    );
+  }, [isSetupMode, currentNode.annotation, currentNode.san, boardOrientation]);
 
   // Calculate current depth
   const currentDepth = Object.values(pvLines).length > 0 
-      ? Math.max(...Object.values(pvLines).map(l => parseInt(l.depth, 10))) 
+      ? Math.max(0, ...Object.values(pvLines).map(l => parseInt(l.depth, 10) || 0)) 
       : 0;
 
-  // Visual Engine Arrows
-  let customArrows = [];
-  if (showArrows && playMode === 'Analysis' && Object.keys(pvLines).length > 0 && !isDragging) {
-      const colors = ['rgba(0, 255, 0, 0.6)', 'rgba(0, 100, 255, 0.6)', 'rgba(255, 165, 0, 0.6)'];
-      // sort keys to ensure 1 is first
-      const keys = Object.keys(pvLines).sort();
-      keys.forEach((key, index) => {
-          if (index < 3) {
-             const pv = pvLines[key].pv;
-             if (pv) {
-                 const firstMove = pv.split(' ')[0]; // e.g. e2e4
-                 if (firstMove && firstMove.length >= 4) {
-                     const from = firstMove.substring(0, 2);
-                     const to = firstMove.substring(2, 4);
-                     customArrows.push([from, to, colors[index]]);
-                 }
-             }
+  // Memoized Custom Engine Arrows SVG Overlay
+  const engineArrowsOverlay = useMemo(() => {
+    if (isSetupMode || !showArrows || playMode !== 'Analysis' || isDragging || !pvLines) {
+      return null;
+    }
+
+    const arrowConfigs = [
+      { color: 'rgba(34, 197, 94, 0.85)', strokeWidth: 1.8, headLen: 4.2, headWidth: 3.8 }, // 1st line: green
+      { color: 'rgba(59, 130, 246, 0.80)', strokeWidth: 1.6, headLen: 3.8, headWidth: 3.4 }, // 2nd line: blue
+      { color: 'rgba(245, 158, 11, 0.75)', strokeWidth: 1.4, headLen: 3.4, headWidth: 3.0 }, // 3rd line: orange
+    ];
+
+    const currentTurn = game.turn();
+    const legalMoves = game.moves({ verbose: true });
+    const sortedKeys = Object.keys(pvLines).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+    const candidateMoves = [];
+
+    sortedKeys.forEach((key) => {
+      const line = pvLines[key];
+      if (!line || !line.pv || line.pv === 'Book') return;
+      const firstMove = line.pv.trim().split(/\s+/)[0];
+      if (firstMove && firstMove.length >= 4) {
+        const from = firstMove.substring(0, 2);
+        const to = firstMove.substring(2, 4);
+        const piece = game.get(from);
+        if (piece && piece.color === currentTurn) {
+          // Strictly verify the move is legal for the active board state
+          const isLegal = legalMoves.some(m => m.from === from && m.to === to);
+          if (isLegal && !candidateMoves.some(m => m.from === from && m.to === to)) {
+            candidateMoves.push({ from, to });
           }
-      });
-  }
+        }
+      }
+    });
+
+    if (candidateMoves.length === 0) return null;
+
+    // Helper to calculate square center coordinates (0..100)
+    const getSquareCenter = (sq) => {
+      const fileIdx = 'abcdefgh'.indexOf(sq[0]);
+      const rankIdx = parseInt(sq[1], 10) - 1;
+      if (fileIdx < 0 || rankIdx < 0 || rankIdx > 7) return null;
+      const col = boardOrientation === 'white' ? fileIdx : 7 - fileIdx;
+      const row = boardOrientation === 'white' ? 7 - rankIdx : rankIdx;
+      return {
+        x: col * 12.5 + 6.25,
+        y: row * 12.5 + 6.25
+      };
+    };
+
+    const renderedArrows = candidateMoves.slice(0, 3).map((move, index) => {
+      const fromCenter = getSquareCenter(move.from);
+      const toCenter = getSquareCenter(move.to);
+      if (!fromCenter || !toCenter) return null;
+
+      const config = arrowConfigs[index] || arrowConfigs[2];
+      const dx = toCenter.x - fromCenter.x;
+      const dy = toCenter.y - fromCenter.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 0.1) return null;
+
+      const ux = dx / dist;
+      const uy = dy / dist;
+      const nx = -uy;
+      const ny = ux;
+
+      // Shaft starts slightly away from piece center so piece is not obscured
+      const startX = fromCenter.x + ux * 2.5;
+      const startY = fromCenter.y + uy * 2.5;
+
+      // Tip lands just 1.2% before target square center
+      const tipX = toCenter.x - ux * 1.2;
+      const tipY = toCenter.y - uy * 1.2;
+
+      // Base of arrowhead
+      const baseCenterX = tipX - ux * config.headLen;
+      const baseCenterY = tipY - uy * config.headLen;
+
+      // Arrowhead wings
+      const halfWidth = config.headWidth / 2;
+      const leftX = baseCenterX + nx * halfWidth;
+      const leftY = baseCenterY + ny * halfWidth;
+      const rightX = baseCenterX - nx * halfWidth;
+      const rightY = baseCenterY - ny * halfWidth;
+
+      // Shaft ends slightly inside arrowhead base so no gap
+      const endX = baseCenterX + ux * 0.5;
+      const endY = baseCenterY + uy * 0.5;
+
+      return {
+        key: `${move.from}-${move.to}-${index}`,
+        startX,
+        startY,
+        endX,
+        endY,
+        tipX,
+        tipY,
+        leftX,
+        leftY,
+        rightX,
+        rightY,
+        color: config.color,
+        strokeWidth: config.strokeWidth
+      };
+    }).filter(Boolean);
+
+    if (renderedArrows.length === 0) return null;
+
+    // Render in reverse so best move (index 0) is drawn last (on top)
+    const reversed = [...renderedArrows].reverse();
+
+    return (
+      <svg
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          pointerEvents: 'none',
+          zIndex: 10
+        }}
+        viewBox="0 0 100 100"
+      >
+        {reversed.map((arrow) => (
+          <g key={arrow.key}>
+            <line
+              x1={arrow.startX}
+              y1={arrow.startY}
+              x2={arrow.endX}
+              y2={arrow.endY}
+              stroke={arrow.color}
+              strokeWidth={arrow.strokeWidth}
+              strokeLinecap="round"
+            />
+            <polygon
+              points={`${arrow.tipX},${arrow.tipY} ${arrow.leftX},${arrow.leftY} ${arrow.rightX},${arrow.rightY}`}
+              fill={arrow.color}
+              stroke={arrow.color}
+              strokeWidth="0.3"
+              strokeLinejoin="round"
+            />
+          </g>
+        ))}
+      </svg>
+    );
+  }, [isSetupMode, showArrows, playMode, isDragging, pvLines, game, boardOrientation]);
   const parseScoreForSort = (scoreStr) => {
     if (!scoreStr) return 0;
     if (scoreStr.startsWith('M')) {
@@ -843,16 +1380,69 @@ function App() {
             </a>
         </div>
         {!isSetupMode && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <div className={`turn-indicator ${game.turn() === 'w' ? 'white' : 'black'}`} style={{ margin: 0 }}>
-              {turnColor} to Move
+          <div className="board-header">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+              <div className={`turn-indicator ${game.turn() === 'w' ? 'white' : 'black'}`} style={{ margin: 0 }}>
+                {turnColor} to Move
+              </div>
+              {game.inCheck() && !game.isCheckmate() && (
+                <span style={{ color: '#ef5350', fontWeight: 'bold', fontSize: '0.95rem' }}>
+                  ⚠️ Check!
+                </span>
+              )}
+              {game.isCheckmate() && (
+                <div className="checkmate-status-badge">
+                  ♚ Checkmate — {game.turn() === 'w' ? 'Black won' : 'White won'}
+                </div>
+              )}
+              {game.isThreefoldRepetition() && (
+                <div className="draw-status-badge">
+                  🤝 Draw: Threefold Repetition
+                </div>
+              )}
+              {game.isDrawByFiftyMoves() && (
+                <div className="draw-status-badge">
+                  🤝 Draw: 50-Move Rule
+                </div>
+              )}
+              {game.isStalemate() && (
+                <div className="draw-status-badge">
+                  🤝 Draw: Stalemate
+                </div>
+              )}
+              {game.isInsufficientMaterial() && (
+                <div className="draw-status-badge">
+                  🤝 Draw: Insufficient Material
+                </div>
+              )}
             </div>
-            <button 
-              onClick={() => setBoardOrientation(prev => prev === 'white' ? 'black' : 'white')}
-              style={{ background: 'rgba(255,255,255,0.1)', border: 'none', padding: '0.5rem 1rem', borderRadius: '8px', cursor: 'pointer', color: '#fff' }}
-            >
-              🔄 Flip Board
-            </button>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <div className="volume-control" title={`Volume: ${Math.round((soundOn ? volume : 0) * 100)}%`}>
+                <button 
+                  className="volume-btn"
+                  onClick={toggleSound}
+                  title={soundOn ? 'Mute sound' : 'Unmute sound'}
+                >
+                  {!soundOn || volume === 0 ? '🔇' : (volume < 0.5 ? '🔉' : '🔊')}
+                </button>
+                <input 
+                  type="range"
+                  className="volume-slider"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={soundOn ? volume : 0}
+                  onChange={(e) => handleVolumeChange(e.target.value)}
+                  aria-label="Volume slider"
+                />
+              </div>
+              <button 
+                onClick={() => setBoardOrientation(prev => prev === 'white' ? 'black' : 'white')}
+                style={{ background: 'rgba(255,255,255,0.1)', border: 'none', padding: '0.5rem 0.9rem', borderRadius: '8px', cursor: 'pointer', color: '#fff', fontSize: '0.9rem' }}
+              >
+                🔄 Flip Board
+              </button>
+            </div>
           </div>
         )}
         
@@ -871,7 +1461,7 @@ function App() {
             <Chessboard 
               id="MainBoard"
               position={currentFen} 
-              isDraggablePiece={() => !isEngineTurn}
+              isDraggablePiece={isDraggablePiece}
               boardOrientation={boardOrientation}
               onPieceDrop={isSetupMode ? onPieceDropSetup : onDrop}
               onPieceDragBegin={() => setIsDragging(true)}
@@ -883,20 +1473,59 @@ function App() {
               animationDuration={200}
               sparePieces={isSetupMode}
               dropOffBoard={isSetupMode ? 'trash' : 'snapback'}
-              customArrows={customArrows}
+              customArrows={[]}
             />
             {annotationOverlay}
+            {engineArrowsOverlay}
           </div>
         </div>
 
-        {!isSetupMode && currentNode.annotation && (
-          <div style={{
-             marginTop: '1rem', padding: '1rem', borderRadius: '8px',
-             background: currentNode.annotation === '!!' ? 'rgba(27, 172, 166, 0.2)' : 
-                         currentNode.annotation === '??' ? 'rgba(229, 57, 53, 0.2)' : 'rgba(255,255,255,0.1)',
-             textAlign: 'center', fontWeight: 'bold', fontSize: '1.1rem'
-          }}>
-             {currentNode.san} {currentNode.annotation} — {getAnnotationDescription(currentNode.annotation)}
+        {!isSetupMode && (
+          <div className="annotation-slot">
+            {currentNode.annotation ? (
+              <div style={{
+                 width: '100%',
+                 padding: '0.6rem 1rem', borderRadius: '8px',
+                 background: 
+                   currentNode.annotation === '📖' ? 'rgba(133, 169, 71, 0.2)' :
+                   currentNode.annotation === '!!' ? 'rgba(27, 172, 166, 0.2)' : 
+                   currentNode.annotation === '!'  ? 'rgba(92, 139, 176, 0.2)' :
+                   currentNode.annotation === '★'  ? 'rgba(129, 182, 76, 0.2)' :
+                   currentNode.annotation === '✓'  ? 'rgba(135, 171, 99, 0.2)' :
+                   currentNode.annotation === '?!' ? 'rgba(245, 176, 65, 0.2)' :
+                   currentNode.annotation === '?'  ? 'rgba(235, 152, 78, 0.2)' :
+                   currentNode.annotation === '??' ? 'rgba(229, 57, 53, 0.2)' : 'rgba(255,255,255,0.1)',
+                 border: `1px solid ${
+                   currentNode.annotation === '📖' ? '#85a947' :
+                   currentNode.annotation === '!!' ? '#1baca6' : 
+                   currentNode.annotation === '!'  ? '#5c8bb0' :
+                   currentNode.annotation === '★'  ? '#81b64c' :
+                   currentNode.annotation === '✓'  ? '#87ab63' :
+                   currentNode.annotation === '?!' ? '#f5b041' :
+                   currentNode.annotation === '?'  ? '#eb984e' :
+                   currentNode.annotation === '??' ? '#e53935' : 'rgba(255,255,255,0.2)'
+                 }`,
+                 textAlign: 'center', fontWeight: 'bold', fontSize: '1.05rem',
+                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem'
+              }}>
+                 <span style={{
+                   fontSize: '1.25rem',
+                   color: 
+                     currentNode.annotation === '📖' ? '#85a947' :
+                     currentNode.annotation === '!!' ? '#1baca6' : 
+                     currentNode.annotation === '!'  ? '#5c8bb0' :
+                     currentNode.annotation === '★'  ? '#81b64c' :
+                     currentNode.annotation === '✓'  ? '#87ab63' :
+                     currentNode.annotation === '?!' ? '#f5b041' :
+                     currentNode.annotation === '?'  ? '#eb984e' : '#e53935'
+                 }}>
+                   {currentNode.annotation}
+                 </span>
+                 <span>{currentNode.san}</span>
+                 <span style={{ color: '#aaa', fontWeight: 'normal' }}>—</span>
+                 <span>{getAnnotationDescription(currentNode.annotation)}</span>
+              </div>
+            ) : null}
           </div>
         )}
 
@@ -1010,14 +1639,25 @@ function App() {
           <button onClick={resetGame} style={{ marginTop: '1rem', width: '100%' }}>New Game</button>
         </div>
 
+        {playMode !== 'Analysis' && (
+          <div className="glass-panel" style={{ background: 'rgba(27, 172, 166, 0.08)', border: '1px solid rgba(27, 172, 166, 0.3)', padding: '1rem', borderRadius: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: '#1baca6', fontWeight: 'bold', fontSize: '1.05rem' }}>
+              <span>⚡</span> Game Mode: Maximum Strength
+            </div>
+            <p style={{ margin: '0.5rem 0 0', fontSize: '0.85rem', color: '#ddd', lineHeight: '1.5' }}>
+              Engine playing at full strength: <b>{maxHardwareThreads} threads</b>, depth <b>unlimited</b>, Polyglot opening book & Syzygy tablebases.
+            </p>
+          </div>
+        )}
+
         {playMode === 'Analysis' && (
           <div className="glass-panel">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
-                    <h2 style={{ margin: 0 }}>Engine Lines (Multi-PV)</h2>
+                    <h2 style={{ margin: 0 }}>Position Analysis</h2>
                     <span style={{ fontSize: '0.8rem', color: '#aaa', fontStyle: 'italic' }}>
-                        (Analyzes each move up to Depth {analysisDepth})
+                        (depth {analysisDepth})
                     </span>
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -1025,44 +1665,75 @@ function App() {
                       onClick={startFullGameAnalysis} 
                       disabled={isAnalyzingGame || Object.keys(nodes).length <= 1}
                       className="modern-button"
-                      style={{ padding: '6px 12px', fontSize: '0.9rem', width: 'fit-content', background: 'rgba(27, 172, 166, 0.2)', border: '1px solid #1baca6' }}
+                      style={{ padding: '6px 14px', fontSize: '0.9rem', width: 'fit-content', background: 'rgba(27, 172, 166, 0.2)', border: '1px solid #1baca6' }}
                     >
-                      Analyze Game
+                      Full Game Analysis
                     </button>
                     {isAnalyzingGame && (
                         <button 
                           onClick={cancelFullGameAnalysis} 
                           className="modern-button"
-                          style={{ padding: '6px 12px', fontSize: '0.9rem', width: 'fit-content', background: 'rgba(229, 57, 53, 0.2)', border: '1px solid #e53935' }}
+                          style={{ padding: '6px 14px', fontSize: '0.9rem', width: 'fit-content', background: 'rgba(229, 57, 53, 0.2)', border: '1px solid #e53935' }}
                         >
                           Cancel
                         </button>
                     )}
                 </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#1baca6', backgroundColor: 'rgba(27, 172, 166, 0.1)', padding: '4px 10px', borderRadius: '6px' }}>
-                Depth: {currentDepth}/{analysisDepth}
-              </span>
-              <input 
-                type="range" 
-                min="5" 
-                max="50" 
-                value={analysisDepth} 
-                onChange={(e) => {
-                  const d = parseInt(e.target.value, 10);
-                  setAnalysisDepth(d);
-                  if (wsRef.current && wsRef.current.readyState === 1) {
-                    // requestAnalysis will be triggered via useEffect or we can trigger it here:
-                    requestAnalysis(currentFenRef.current, d);
-                  }
-                }}
-                style={{ width: '100px' }}
-              />
-              <div className="btn-group">
-                <button className={multiPvCount === 1 ? 'active' : ''} onClick={() => setMultiPvCount(1)}>1</button>
-                <button className={multiPvCount === 3 ? 'active' : ''} onClick={() => setMultiPvCount(3)}>3</button>
-                <button className={multiPvCount === 5 ? 'active' : ''} onClick={() => setMultiPvCount(5)}>5</button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'rgba(0,0,0,0.2)', padding: '0.6rem 0.8rem', borderRadius: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.95rem', fontWeight: 'bold', color: '#1baca6', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  Depth: <span style={{ fontSize: '1.1rem', color: '#fff' }}>{currentDepth}</span> / {analysisDepth}
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                  <input 
+                    type="range" 
+                    min="6" 
+                    max="35" 
+                    value={analysisDepth} 
+                    onChange={(e) => {
+                      const d = parseInt(e.target.value, 10);
+                      setAnalysisDepth(d);
+                      if (wsRef.current && wsRef.current.readyState === 1) {
+                        requestAnalysis(currentFenRef.current, d);
+                      }
+                    }}
+                    style={{ width: '100px', cursor: 'pointer' }}
+                  />
+                  <div className="btn-group">
+                    {[10, 15, 20, 25, 30].map(preset => (
+                      <button 
+                        key={preset}
+                        className={analysisDepth === preset ? 'active' : ''}
+                        onClick={() => {
+                          setAnalysisDepth(preset);
+                          if (wsRef.current && wsRef.current.readyState === 1) {
+                            requestAnalysis(currentFenRef.current, preset);
+                          }
+                        }}
+                        style={{ padding: '0.2rem 0.45rem', fontSize: '0.78rem' }}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', color: '#aaa', marginTop: '0.2rem' }}>
+                <span>Multi-PV:</span>
+                <div className="btn-group">
+                  <button className={multiPvCount === 1 ? 'active' : ''} onClick={() => setMultiPvCount(1)}>1</button>
+                  <button className={multiPvCount === 3 ? 'active' : ''} onClick={() => setMultiPvCount(3)}>3</button>
+                  <button className={multiPvCount === 5 ? 'active' : ''} onClick={() => setMultiPvCount(5)}>5</button>
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', color: '#aaa' }}>
+                <span>Threads:</span>
+                <div className="btn-group">
+                  <button className={engineThreads === 1 ? 'active' : ''} onClick={() => setEngineThreads(1)}>1</button>
+                  <button className={engineThreads === 2 ? 'active' : ''} onClick={() => setEngineThreads(2)}>2</button>
+                  <button className={engineThreads === 4 ? 'active' : ''} onClick={() => setEngineThreads(4)}>4</button>
+                </div>
               </div>
             </div>
           </div>

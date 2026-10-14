@@ -165,16 +165,211 @@ namespace Evaluation {
     };
 
     int get_game_phase(const BoardState& pos) {
-        int phase = 24;
-        phase -= Bitboard::count_bits(pos.pieceBB[N]) * 1;
-        phase -= Bitboard::count_bits(pos.pieceBB[n]) * 1;
-        phase -= Bitboard::count_bits(pos.pieceBB[B]) * 1;
-        phase -= Bitboard::count_bits(pos.pieceBB[b]) * 1;
-        phase -= Bitboard::count_bits(pos.pieceBB[R]) * 2;
-        phase -= Bitboard::count_bits(pos.pieceBB[r]) * 2;
-        phase -= Bitboard::count_bits(pos.pieceBB[Q]) * 4;
-        phase -= Bitboard::count_bits(pos.pieceBB[q]) * 4;
-        return std::max(0, phase);
+        int phase = 0;
+        phase += Bitboard::count_bits(pos.pieceBB[N] | pos.pieceBB[n]) * 1;
+        phase += Bitboard::count_bits(pos.pieceBB[B] | pos.pieceBB[b]) * 1;
+        phase += Bitboard::count_bits(pos.pieceBB[R] | pos.pieceBB[r]) * 2;
+        phase += Bitboard::count_bits(pos.pieceBB[Q] | pos.pieceBB[q]) * 4;
+        return std::min(24, phase);
+    }
+
+    U64 passed_pawn_masks[2][64];
+    bool tables_initialized = false;
+
+    void init_evaluation_tables() {
+        if (tables_initialized) return;
+        for (int sq = 0; sq < 64; sq++) {
+            int file = sq % 8;
+            int rank = sq / 8;
+
+            U64 white_mask = 0ULL;
+            U64 black_mask = 0ULL;
+
+            for (int r = rank + 1; r < 8; r++) {
+                if (file > 0) white_mask |= (1ULL << (r * 8 + file - 1));
+                white_mask |= (1ULL << (r * 8 + file));
+                if (file < 7) white_mask |= (1ULL << (r * 8 + file + 1));
+            }
+
+            for (int r = rank - 1; r >= 0; r--) {
+                if (file > 0) black_mask |= (1ULL << (r * 8 + file - 1));
+                black_mask |= (1ULL << (r * 8 + file));
+                if (file < 7) black_mask |= (1ULL << (r * 8 + file + 1));
+            }
+
+            passed_pawn_masks[WHITE][sq] = white_mask;
+            passed_pawn_masks[BLACK][sq] = black_mask;
+        }
+        tables_initialized = true;
+    }
+
+    inline int chebyshev_distance(int sq1, int sq2) {
+        int r1 = sq1 / 8, f1 = sq1 % 8;
+        int r2 = sq2 / 8, f2 = sq2 % 8;
+        return std::max(std::abs(r1 - r2), std::abs(f1 - f2));
+    }
+
+    int adjust_eval(int score, const BoardState& pos) {
+        init_evaluation_tables();
+
+        int side = pos.side;
+
+        // 1. 50-Move Rule Progress Scaling
+        // Encourages pawn pushes or captures to avoid shuffling into 50-move draws
+        if (pos.rule50 >= 40 && std::abs(score) < 25000) {
+            score = score * (100 - pos.rule50) / 60;
+        }
+
+        // 2. Insufficient Mating Material / Drawish Endgames
+        int w_pawns = Bitboard::count_bits(pos.pieceBB[P]);
+        int b_pawns = Bitboard::count_bits(pos.pieceBB[p]);
+        int w_queens = Bitboard::count_bits(pos.pieceBB[Q]);
+        int b_queens = Bitboard::count_bits(pos.pieceBB[q]);
+        int w_rooks = Bitboard::count_bits(pos.pieceBB[R]);
+        int b_rooks = Bitboard::count_bits(pos.pieceBB[r]);
+        int w_bishops = Bitboard::count_bits(pos.pieceBB[B]);
+        int b_bishops = Bitboard::count_bits(pos.pieceBB[b]);
+        int w_knights = Bitboard::count_bits(pos.pieceBB[N]);
+        int b_knights = Bitboard::count_bits(pos.pieceBB[n]);
+
+        int w_minors = w_bishops + w_knights;
+        int b_minors = b_bishops + b_knights;
+        int w_majors = w_queens + w_rooks;
+        int b_majors = b_queens + b_rooks;
+
+        // No pawns on board
+        if (w_pawns == 0 && b_pawns == 0) {
+            // KB vs K, KN vs K, KB vs KB, KN vs KN, KN vs KB
+            if (w_majors == 0 && b_majors == 0) {
+                if (w_minors <= 1 && b_minors <= 1) return 0;
+                // KNN vs K cannot force mate
+                if ((w_minors == 2 && w_knights == 2 && b_minors == 0) ||
+                    (b_minors == 2 && b_knights == 2 && w_minors == 0)) {
+                    return 0;
+                }
+            }
+            // KR vs KR
+            if (w_majors == 1 && b_majors == 1 && w_rooks == 1 && b_rooks == 1 && w_minors == 0 && b_minors == 0) {
+                score /= 4; // heavily drawish
+            }
+        }
+
+        // Pure Opposite-Colored Bishops (OCB): No queens, no rooks, no knights
+        if (w_queens == 0 && b_queens == 0 && w_rooks == 0 && b_rooks == 0 && w_knights == 0 && b_knights == 0 && w_bishops == 1 && b_bishops == 1) {
+            int w_bsq = Bitboard::lsb(pos.pieceBB[B]);
+            int b_bsq = Bitboard::lsb(pos.pieceBB[b]);
+            bool w_light = ((w_bsq / 8 + w_bsq % 8) % 2 == 0);
+            bool b_light = ((b_bsq / 8 + b_bsq % 8) % 2 == 0);
+            if (w_light != b_light) {
+                int pawn_diff = std::abs(w_pawns - b_pawns);
+                if (pawn_diff <= 1) {
+                    score /= 3; // strong fortress tendency
+                } else if (pawn_diff == 2) {
+                    score /= 2;
+                }
+            }
+        }
+
+        // 3. Positional Endgame Terms (Passed Pawns, Rooks on Open Files)
+        int positional_bonus = 0;
+        int w_king_sq = Bitboard::lsb(pos.pieceBB[K]);
+        int b_king_sq = Bitboard::lsb(pos.pieceBB[k]);
+
+        // Passed pawns: rank progression & king escort
+        U64 wp = pos.pieceBB[P];
+        while (wp) {
+            int sq = Bitboard::lsb(wp);
+            if (!(pos.pieceBB[p] & passed_pawn_masks[WHITE][sq])) {
+                // White passed pawn!
+                int rank = sq / 8;
+                int file = sq % 8;
+                int rank_bonus = 0;
+                if (rank == 4) rank_bonus = 15;
+                else if (rank == 5) rank_bonus = 35;
+                else if (rank == 6) rank_bonus = 75;
+
+                // Tarrasch rule: rook behind passed pawn
+                U64 file_mask = 0x0101010101010101ULL << file;
+                U64 behind_mask = file_mask & ((1ULL << sq) - 1);
+                if (pos.pieceBB[R] & behind_mask) rank_bonus += 25;
+                if (pos.pieceBB[r] & behind_mask) rank_bonus -= 20;
+
+                // King escort in endgame (if few majors)
+                if (w_majors + b_majors <= 2 && w_king_sq != -1 && b_king_sq != -1) {
+                    int w_dist = chebyshev_distance(w_king_sq, sq);
+                    int b_dist = chebyshev_distance(b_king_sq, sq);
+                    rank_bonus += (b_dist - w_dist) * 6;
+                }
+                positional_bonus += rank_bonus;
+            }
+            Bitboard::pop_bit(wp, sq);
+        }
+
+        U64 bp = pos.pieceBB[p];
+        while (bp) {
+            int sq = Bitboard::lsb(bp);
+            if (!(pos.pieceBB[P] & passed_pawn_masks[BLACK][sq])) {
+                // Black passed pawn!
+                int rank = 7 - (sq / 8);
+                int file = sq % 8;
+                int rank_bonus = 0;
+                if (rank == 4) rank_bonus = 15;
+                else if (rank == 5) rank_bonus = 35;
+                else if (rank == 6) rank_bonus = 75;
+
+                // Tarrasch rule: rook behind passed pawn
+                U64 file_mask = 0x0101010101010101ULL << file;
+                U64 behind_mask = file_mask & ~((1ULL << (sq + 1)) - 1);
+                if (pos.pieceBB[r] & behind_mask) rank_bonus += 25;
+                if (pos.pieceBB[R] & behind_mask) rank_bonus -= 20;
+
+                if (w_majors + b_majors <= 2 && w_king_sq != -1 && b_king_sq != -1) {
+                    int w_dist = chebyshev_distance(w_king_sq, sq);
+                    int b_dist = chebyshev_distance(b_king_sq, sq);
+                    rank_bonus += (w_dist - b_dist) * 6;
+                }
+                positional_bonus -= rank_bonus;
+            }
+            Bitboard::pop_bit(bp, sq);
+        }
+
+        // Rooks on open and semi-open files
+        U64 wr = pos.pieceBB[R];
+        while (wr) {
+            int sq = Bitboard::lsb(wr);
+            int file = sq % 8;
+            U64 f_mask = 0x0101010101010101ULL << file;
+            if (!(pos.pieceBB[P] & f_mask)) {
+                if (!(pos.pieceBB[p] & f_mask)) positional_bonus += 20;
+                else positional_bonus += 10;
+            }
+            Bitboard::pop_bit(wr, sq);
+        }
+
+        U64 br = pos.pieceBB[r];
+        while (br) {
+            int sq = Bitboard::lsb(br);
+            int file = sq % 8;
+            U64 f_mask = 0x0101010101010101ULL << file;
+            if (!(pos.pieceBB[p] & f_mask)) {
+                if (!(pos.pieceBB[P] & f_mask)) positional_bonus -= 20;
+                else positional_bonus -= 10;
+            }
+            Bitboard::pop_bit(br, sq);
+        }
+
+        // Rook on 7th rank (attacking pawns or cutting off king)
+        U64 wr7 = pos.pieceBB[R] & 0x00FF000000000000ULL; // rank 7
+        if (wr7 && (b_king_sq >= 48 || (pos.pieceBB[p] & 0x00FF000000000000ULL))) {
+            positional_bonus += 30 * Bitboard::count_bits(wr7);
+        }
+        U64 br2 = pos.pieceBB[r] & 0x000000000000FF00ULL; // rank 2
+        if (br2 && (w_king_sq <= 15 || (pos.pieceBB[P] & 0x000000000000FF00ULL))) {
+            positional_bonus -= 30 * Bitboard::count_bits(br2);
+        }
+
+        int perspective_bonus = (side == WHITE) ? positional_bonus : -positional_bonus;
+        return score + perspective_bonus;
     }
 
     thread_local NNUEdata* nnue_stack = nullptr;
@@ -217,32 +412,16 @@ namespace Evaluation {
 
         if (squares[0] == -1 || squares[1] == -1) return evaluate(pos);
 
-        bool need_full = true;
-        if (ply == 0) {
-            need_full = true;
-        } else if (nnue_stack[ply].dirtyPiece.dirtyNum == 0) {
-            need_full = false;
-        } else if (ply >= 1 && nnue_stack[ply - 1].accumulator.computedAccumulation == 1) {
-            int moved_pc = nnue_stack[ply].dirtyPiece.pc[0];
-            if (moved_pc != 1 && moved_pc != 7) need_full = false;
-        } else if (ply >= 2 && nnue_stack[ply - 2].accumulator.computedAccumulation == 1) {
-            int moved_pc1 = nnue_stack[ply].dirtyPiece.pc[0];
-            int moved_pc2 = nnue_stack[ply - 1].dirtyPiece.pc[0];
-            if (moved_pc1 != 1 && moved_pc1 != 7 && moved_pc2 != 1 && moved_pc2 != 7) need_full = false;
-        }
-
-        if (need_full) {
-            for (int p = P; p <= k; p++) {
-                if (p == K || p == k) continue;
-                
-                U64 bb = pos.pieceBB[p];
-                while (bb && index < 64) {
-                    int sq = Bitboard::lsb(bb);
-                    pieces[index] = nnue_piece_map[p];
-                    squares[index] = sq;
-                    index++;
-                    Bitboard::pop_bit(bb, sq);
-                }
+        for (int p = P; p <= k; p++) {
+            if (p == K || p == k) continue;
+            
+            U64 bb = pos.pieceBB[p];
+            while (bb && index < 64) {
+                int sq = Bitboard::lsb(bb);
+                pieces[index] = nnue_piece_map[p];
+                squares[index] = sq;
+                index++;
+                Bitboard::pop_bit(bb, sq);
             }
         }
         pieces[index] = 0; // End marker
@@ -252,7 +431,8 @@ namespace Evaluation {
         nnue_data[1] = (ply >= 1) ? &nnue_stack[ply - 1] : nullptr;
         nnue_data[2] = (ply >= 2) ? &nnue_stack[ply - 2] : nullptr;
 
-        return nnue_evaluate_incremental(pos.side, pieces, squares, nnue_data);
+        int raw_score = nnue_evaluate_incremental(pos.side, pieces, squares, nnue_data);
+        return adjust_eval(raw_score, pos);
     }
 
     int evaluate(const BoardState& pos) {
@@ -303,7 +483,7 @@ namespace Evaluation {
             pieces[index] = 0; // End of array marker
 
             int nnue_score = nnue_evaluate(pos.side, pieces, squares);
-            return nnue_score;
+            return adjust_eval(nnue_score, pos);
         }
 
 
@@ -345,7 +525,7 @@ namespace Evaluation {
         // phase is 24 at start (100% MG), 0 at endgame (100% EG)
         int score = (mg_total * phase + eg_total * (24 - phase)) / 24;
 
-        return (pos.side == WHITE) ? score : -score;
+        return adjust_eval((pos.side == WHITE) ? score : -score, pos);
     }
 
 } // namespace Evaluation

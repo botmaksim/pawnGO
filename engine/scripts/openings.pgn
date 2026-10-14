@@ -6,7 +6,7 @@
 [Black "?"]
 [Result "*"]
 
-1. Nc3 f6 2. Nh3 h6 *
+1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *
 
 [Event "?"]
 [Site "?"]
@@ -16,7 +16,7 @@
 [Black "?"]
 [Result "*"]
 
-1. g3 Nc6 2. e4 Nf6 *
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 *
 
 [Event "?"]
 [Site "?"]
@@ -26,7 +26,7 @@
 [Black "?"]
 [Result "*"]
 
-1. a4 h6 2. Nh3 d6 *
+1. e4 e5 2. Nf3 Nc6 3. d4 exd4 *
 
 [Event "?"]
 [Site "?"]
@@ -36,7 +36,7 @@
 [Black "?"]
 [Result "*"]
 
-1. b3 g6 2. a3 e6 *
+1. e4 e5 2. Nf3 Nf6 *
 
 [Event "?"]
 [Site "?"]
@@ -46,7 +46,7 @@
 [Black "?"]
 [Result "*"]
 
-1. d3 f6 2. Qd2 g6 *
+1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. Nc3 a6 *
 
 [Event "?"]
 [Site "?"]
@@ -56,7 +56,7 @@
 [Black "?"]
 [Result "*"]
 
-1. Nh3 Nh6 2. f4 a5 *
+1. e4 c5 2. Nf3 Nc6 3. d4 cxd4 4. Nxd4 Nf6 *
 
 [Event "?"]
 [Site "?"]
@@ -66,7 +66,7 @@
 [Black "?"]
 [Result "*"]
 
-1. Nh3 c6 2. f3 d5 *
+1. e4 c5 2. Nf3 e6 3. d4 cxd4 *
 
 [Event "?"]
 [Site "?"]
@@ -76,7 +76,7 @@
 [Black "?"]
 [Result "*"]
 
-1. c4 c6 2. f4 g5 *
+1. e4 c5 2. Nc3 Nc6 3. g3 g6 *
 
 [Event "?"]
 [Site "?"]
@@ -86,7 +86,7 @@
 [Black "?"]
 [Result "*"]
 
-1. c4 c5 2. h4 d5 *
+1. e4 e6 2. d4 d5 3. Nc3 Nf6 *
 
 [Event "?"]
 [Site "?"]
@@ -96,7 +96,7 @@
 [Black "?"]
 [Result "*"]
 
-1. d4 Nh6 2. g3 d6 *
+1. e4 e6 2. d4 d5 3. Nd2 c5 *
 
 [Event "?"]
 [Site "?"]
@@ -106,7 +106,7 @@
 [Black "?"]
 [Result "*"]
 
-1. a4 g6 2. Nf3 f5 *
+1. e4 c6 2. d4 d5 3. Nc3 dxe4 *
 
 [Event "?"]
 [Site "?"]
@@ -116,7 +116,7 @@
 [Black "?"]
 [Result "*"]
 
-1. Nh3 d5 2. a3 f5 *
+1. e4 c6 2. d4 d5 3. e5 Bf5 *
 
 [Event "?"]
 [Site "?"]
@@ -126,7 +126,7 @@
 [Black "?"]
 [Result "*"]
 
-1. f4 c5 2. b3 g5 *
+1. d4 d5 2. c4 e6 3. Nc3 Nf6 *
 
 [Event "?"]
 [Site "?"]
@@ -136,7 +136,7 @@
 [Black "?"]
 [Result "*"]
 
-1. c4 d6 2. h4 Bf5 *
+1. d4 d5 2. c4 c6 3. Nf3 Nf6 *
 
 [Event "?"]
 [Site "?"]
@@ -146,7 +146,7 @@
 [Black "?"]
 [Result "*"]
 
-1. g4 f6 2. Nf3 h5 *
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 *
 
 [Event "?"]
 [Site "?"]
@@ -156,7 +156,7 @@
 [Black "?"]
 [Result "*"]
 
-1. b4 c5 2. c3 Nh6 *
+1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 *
 
 [Event "?"]
 [Site "?"]
@@ -166,7 +166,7 @@
 [Black "?"]
 [Result "*"]
 
-1. Na3 h6 2. c3 b6 *
+1. d4 Nf6 2. c4 e6 3. Nf3 b6 *
 
 [Event "?"]
 [Site "?"]
@@ -176,7 +176,7 @@
 [Black "?"]
 [Result "*"]
 
-1. a4 f5 2. Ra3 b6 *
+1. d4 Nf6 2. c4 g6 3. Nc3 d5 *
 
 [Event "?"]
 [Site "?"]
@@ -186,7 +186,7 @@
 [Black "?"]
 [Result "*"]
 
-1. g4 e6 2. Nc3 b6 *
+1. c4 e5 2. Nc3 Nf6 3. g3 d5 *
 
 [Event "?"]
 [Site "?"]
@@ -196,7 +196,7 @@
 [Black "?"]
 [Result "*"]
 
-1. f3 f6 2. c3 e5 *
+1. c4 c5 2. Nf3 Nf6 3. d4 cxd4 *
 
 [Event "?"]
 [Site "?"]
@@ -206,7 +206,7 @@
 [Black "?"]
 [Result "*"]
 
-1. d3 d5 2. b4 Qd7 *
+1. Nf3 d5 2. g3 Nf6 3. Bg2 c6 *
 
 [Event "?"]
 [Site "?"]
@@ -216,7 +216,7 @@
 [Black "?"]
 [Result "*"]
 
-1. e4 a6 2. h3 e5 *
+1. d4 Nf6 2. c4 e6 3. g3 d5 4. Bg2 *
 
 [Event "?"]
 [Site "?"]
@@ -226,7 +226,7 @@
 [Black "?"]
 [Result "*"]
 
-1. Nc3 f6 2. f4 g5 *
+1. d4 d5 2. Nf3 Nf6 3. Bf4 c5 *
 
 [Event "?"]
 [Site "?"]
@@ -236,7 +236,7 @@
 [Black "?"]
 [Result "*"]
 
-1. f3 Nf6 2. d3 a6 *
+1. e4 d6 2. d4 Nf6 3. Nc3 g6 *
 
 [Event "?"]
 [Site "?"]
@@ -246,7 +246,7 @@
 [Black "?"]
 [Result "*"]
 
-1. g4 a5 2. f4 Nc6 *
+1. e4 g6 2. d4 Bg7 3. Nf3 d6 *
 
 [Event "?"]
 [Site "?"]
@@ -256,7 +256,7 @@
 [Black "?"]
 [Result "*"]
 
-1. Nc3 b5 2. d4 c5 *
+1. d4 f5 2. g3 Nf6 3. Bg2 e6 *
 
 [Event "?"]
 [Site "?"]
@@ -266,7 +266,7 @@
 [Black "?"]
 [Result "*"]
 
-1. h3 c6 2. g3 h6 *
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 *
 
 [Event "?"]
 [Site "?"]
@@ -276,7 +276,7 @@
 [Black "?"]
 [Result "*"]
 
-1. c4 c6 2. g3 Na6 *
+1. e4 c5 2. Nf3 d6 3. Bb5+ Bd7 *
 
 [Event "?"]
 [Site "?"]
@@ -286,7 +286,7 @@
 [Black "?"]
 [Result "*"]
 
-1. f3 d5 2. g3 Bd7 *
+1. d4 d5 2. c4 e6 3. Nf3 c6 *
 
 [Event "?"]
 [Site "?"]
@@ -296,205 +296,4 @@
 [Black "?"]
 [Result "*"]
 
-1. f4 Nf6 2. d4 a6 *
-
-[Event "?"]
-[Site "?"]
-[Date "????.??.??"]
-[Round "?"]
-[White "?"]
-[Black "?"]
-[Result "*"]
-
-1. Nc3 h6 2. h4 a5 *
-
-[Event "?"]
-[Site "?"]
-[Date "????.??.??"]
-[Round "?"]
-[White "?"]
-[Black "?"]
-[Result "*"]
-
-1. d3 e5 2. e4 d6 *
-
-[Event "?"]
-[Site "?"]
-[Date "????.??.??"]
-[Round "?"]
-[White "?"]
-[Black "?"]
-[Result "*"]
-
-1. Na3 h5 2. h3 d6 *
-
-[Event "?"]
-[Site "?"]
-[Date "????.??.??"]
-[Round "?"]
-[White "?"]
-[Black "?"]
-[Result "*"]
-
-1. b3 f5 2. Nf3 Na6 *
-
-[Event "?"]
-[Site "?"]
-[Date "????.??.??"]
-[Round "?"]
-[White "?"]
-[Black "?"]
-[Result "*"]
-
-1. Nc3 g5 2. Nd5 f6 *
-
-[Event "?"]
-[Site "?"]
-[Date "????.??.??"]
-[Round "?"]
-[White "?"]
-[Black "?"]
-[Result "*"]
-
-1. e3 h6 2. b3 g6 *
-
-[Event "?"]
-[Site "?"]
-[Date "????.??.??"]
-[Round "?"]
-[White "?"]
-[Black "?"]
-[Result "*"]
-
-1. f4 a5 2. Kf2 Ra7 *
-
-[Event "?"]
-[Site "?"]
-[Date "????.??.??"]
-[Round "?"]
-[White "?"]
-[Black "?"]
-[Result "*"]
-
-1. a3 b6 2. Ra2 c6 *
-
-[Event "?"]
-[Site "?"]
-[Date "????.??.??"]
-[Round "?"]
-[White "?"]
-[Black "?"]
-[Result "*"]
-
-1. Nf3 g6 2. b4 e6 *
-
-[Event "?"]
-[Site "?"]
-[Date "????.??.??"]
-[Round "?"]
-[White "?"]
-[Black "?"]
-[Result "*"]
-
-1. f3 Na6 2. h3 Rb8 *
-
-[Event "?"]
-[Site "?"]
-[Date "????.??.??"]
-[Round "?"]
-[White "?"]
-[Black "?"]
-[Result "*"]
-
-1. f3 b6 2. g4 Nc6 *
-
-[Event "?"]
-[Site "?"]
-[Date "????.??.??"]
-[Round "?"]
-[White "?"]
-[Black "?"]
-[Result "*"]
-
-1. e3 e5 2. Qf3 e4 *
-
-[Event "?"]
-[Site "?"]
-[Date "????.??.??"]
-[Round "?"]
-[White "?"]
-[Black "?"]
-[Result "*"]
-
-1. e4 a5 2. c4 b6 *
-
-[Event "?"]
-[Site "?"]
-[Date "????.??.??"]
-[Round "?"]
-[White "?"]
-[Black "?"]
-[Result "*"]
-
-1. h3 Nc6 2. a3 Nf6 *
-
-[Event "?"]
-[Site "?"]
-[Date "????.??.??"]
-[Round "?"]
-[White "?"]
-[Black "?"]
-[Result "*"]
-
-1. g3 Nh6 2. h3 d5 *
-
-[Event "?"]
-[Site "?"]
-[Date "????.??.??"]
-[Round "?"]
-[White "?"]
-[Black "?"]
-[Result "*"]
-
-1. Nh3 e5 2. c4 Bc5 *
-
-[Event "?"]
-[Site "?"]
-[Date "????.??.??"]
-[Round "?"]
-[White "?"]
-[Black "?"]
-[Result "*"]
-
-1. e3 f5 2. c3 h6 *
-
-[Event "?"]
-[Site "?"]
-[Date "????.??.??"]
-[Round "?"]
-[White "?"]
-[Black "?"]
-[Result "*"]
-
-1. Nc3 f5 2. d4 Nf6 *
-
-[Event "?"]
-[Site "?"]
-[Date "????.??.??"]
-[Round "?"]
-[White "?"]
-[Black "?"]
-[Result "*"]
-
-1. h4 f6 2. e3 g6 *
-
-[Event "?"]
-[Site "?"]
-[Date "????.??.??"]
-[Round "?"]
-[White "?"]
-[Black "?"]
-[Result "*"]
-
-1. Na3 d5 2. h4 Bf5 *
-
+1. c4 Nf6 2. Nc3 e6 3. e4 d5 *

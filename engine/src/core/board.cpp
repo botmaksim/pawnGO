@@ -29,6 +29,7 @@ namespace Board {
         if (undo) {
             undo->enpassant = pos.enpassant;
             undo->castle = pos.castle;
+            undo->rule50 = pos.rule50;
             undo->hash_key = pos.hash_key;
             undo->captured_piece = -1;
         }
@@ -184,6 +185,12 @@ namespace Board {
 
         pos.occupancies[BOTH] = pos.occupancies[WHITE] | pos.occupancies[BLACK];
 
+        if (capture || piece == P || piece == p) {
+            pos.rule50 = 0;
+        } else {
+            pos.rule50++;
+        }
+
         pos.side ^= 1; // Change side
 
         // Check if king is in check after our move
@@ -291,6 +298,7 @@ namespace Board {
         
         pos.enpassant = undo.enpassant;
         pos.castle = undo.castle;
+        pos.rule50 = undo.rule50;
         pos.hash_key = undo.hash_key;
     }
 

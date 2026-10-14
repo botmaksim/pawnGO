@@ -10,29 +10,6 @@
 namespace Bitboard {
     std::string current_fen = "";
 
-    int count_bits(U64 bb) {
-        int count = 0;
-        while (bb) {
-            count++;
-            bb &= bb - 1; // reset LS1B
-        }
-        return count;
-    }
-
-    int lsb(U64 bb) {
-        if (bb) {
-#if defined(__GNUC__) || defined(__clang__)
-            return __builtin_ctzll(bb);
-#elif defined(_MSC_VER)
-            unsigned long index;
-            _BitScanForward64(&index, bb);
-            return index;
-#else
-            return count_bits((bb & -bb) - 1);
-#endif
-        }
-        return -1;
-    }
 
     void init(BoardState& pos) {
         for (int i = 0; i < 12; ++i) pos.pieceBB[i] = 0ULL;
@@ -40,6 +17,7 @@ namespace Bitboard {
         pos.side = WHITE;
         pos.enpassant = no_sq;
         pos.castle = 0;
+        pos.rule50 = 0;
     }
 
     void parse_fen(BoardState& pos, const std::string& fen) {
@@ -118,8 +96,24 @@ namespace Bitboard {
             int f = fen[i] - 'a';
             int r = fen[i+1] - '1';
             pos.enpassant = r * 8 + f;
+            i += 2;
+        } else if (i < fen.length() && fen[i] == '-') {
+            pos.enpassant = no_sq;
+            i++;
         } else {
             pos.enpassant = no_sq;
+        }
+
+        // Skip whitespace
+        while (i < fen.length() && fen[i] == ' ') i++;
+
+        // Parse Halfmove clock (50-move rule counter)
+        pos.rule50 = 0;
+        if (i < fen.length() && fen[i] >= '0' && fen[i] <= '9') {
+            while (i < fen.length() && fen[i] >= '0' && fen[i] <= '9') {
+                pos.rule50 = pos.rule50 * 10 + (fen[i] - '0');
+                i++;
+            }
         }
 
         // Update occupancies

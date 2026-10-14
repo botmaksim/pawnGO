@@ -30,8 +30,22 @@ export function parseScoreToPawns(scoreStr) {
     return isNaN(pf) ? undefined : pf;
 }
 
+// Winning probability model: W(p) = 1 / (1 + 10^(-p/4))
+export function winProbability(pawns) {
+    if (pawns === undefined || isNaN(pawns)) return 0.5;
+    const clamped = Math.max(-20, Math.min(20, pawns));
+    return 1 / (1 + Math.pow(10, -clamped / 4));
+}
+
 // Classify a move from Node A to Node B
 export function classifyMove(nodeA, nodeB, sanMove) {
+    if (!nodeA || !nodeB) return '';
+
+    // 1. Opening Book Detection
+    if (nodeA.isBook || nodeB.isBook || nodeA.pvLines?.['1']?.score === 'Book' || nodeB.pvLines?.['1']?.score === 'Book') {
+        return '📖'; // Book move
+    }
+
     if (!nodeA.pvLines || !nodeB.pvLines) return '';
 
     // Convert scores to absolute perspective (white is positive)
@@ -53,43 +67,84 @@ export function classifyMove(nodeA, nodeB, sanMove) {
     
     const turnA = nodeA.fen.split(' ')[1];
     
-    // Delta in raw pawns from perspective of the player to move
-    let pawnsDelta = turnA === 'w' ? (scoreB - scoreA) : (scoreA - scoreB);
+    // Player advantage in pawns (from the perspective of the player making the move)
+    const playerScoreA = turnA === 'w' ? scoreA : -scoreA;
+    const playerScoreB = turnA === 'w' ? scoreB : -scoreB;
+    const pawnsDelta = playerScoreB - playerScoreA;
+
+    // Win probability delta: Delta Win% = W(B) - W(A)
+    const winProbA = winProbability(playerScoreA);
+    const winProbB = winProbability(playerScoreB);
+    const winProbDelta = winProbB - winProbA;
 
     // Get top moves of parent
     const topMoves = [];
-    for (let i = 1; i <= Object.keys(nodeA.pvLines).length; i++) {
-        if (nodeA.pvLines[i]) topMoves.push(nodeA.pvLines[i]);
+    if (nodeA.pvLines) {
+        for (let i = 1; i <= Object.keys(nodeA.pvLines).length; i++) {
+            if (nodeA.pvLines[i]) topMoves.push(nodeA.pvLines[i]);
+            else if (nodeA.pvLines[i.toString()]) topMoves.push(nodeA.pvLines[i.toString()]);
+        }
     }
     
-    const topMoveSan = topMoves.length > 0 ? topMoves[0].san.split(' ')[0] : null;
-    const isTopMove = topMoveSan === sanMove;
-    
-    let pawnsAdvantageOverOthers = 0;
-    if (isTopMove && topMoves.length > 1) {
-        const score1 = parseScoreToPawns(topMoves[0].score);
-        const score2 = parseScoreToPawns(topMoves[1].score);
-        pawnsAdvantageOverOthers = turnA === 'w' ? (score1 - score2) : (score2 - score1);
+    // Extract first move in PV
+    let topMoveSan = null;
+    if (topMoves.length > 0 && topMoves[0].san) {
+        topMoveSan = topMoves[0].san.trim().split(' ')[0];
+    }
+    const isStrictTopMove = topMoveSan === sanMove;
+
+    // Check material sacrifice for Brilliant move
+    const matA = countMaterial(nodeA.fen);
+    const matB = countMaterial(nodeB.fen);
+    const playerMatA = turnA === 'w' ? matA.white : matA.black;
+    const playerMatB = turnA === 'w' ? matB.white : matB.black;
+    const oppMatA = turnA === 'w' ? matA.black : matA.white;
+    const oppMatB = turnA === 'w' ? matB.black : matB.white;
+    const sacrificedMaterial = (playerMatA - playerMatB) > (oppMatA - oppMatB) + 1;
+
+    // Brilliant (!!): sacrificed material, position remains winning or solid, and minimal win% loss
+    if (sacrificedMaterial && playerScoreB >= -0.2 && winProbDelta >= -0.04) {
+        return '!!';
     }
 
-    // Classification Logic
-    if (isTopMove) {
-        if (pawnsAdvantageOverOthers >= 2.0 && Math.abs(scoreA) < 5.0) return '!!'; // Brilliant (found a far superior move in competitive position)
-        if (pawnsAdvantageOverOthers >= 1.0) return '!'; // Strong move
-        return '★'; // Best move
+    // Best Move (★): Strict engine top move OR win% loss < 2% OR pawns delta >= -0.10
+    if (isStrictTopMove || winProbDelta >= -0.02 || pawnsDelta >= -0.10) {
+        return '★';
     }
 
-    // Drop in pawn evaluation -> classification
-    if (pawnsDelta > -0.5) return '✓'; // Good
-    if (pawnsDelta > -1.2) return '?!'; // Inaccuracy
-    if (pawnsDelta > -2.5) return '?'; // Mistake
-    return '??'; // Blunder
+    // Good Move (✓): Win% loss up to 6% OR pawns delta >= -0.35
+    if (winProbDelta >= -0.06 || pawnsDelta >= -0.35) {
+        return '✓';
+    }
+
+    // Inaccuracy (?!): Win% loss between 6% and 12%
+    if (winProbDelta >= -0.12) {
+        return '?!';
+    }
+
+    // Mistake (?): Win% loss between 12% and 22%
+    if (winProbDelta >= -0.22) {
+        return '?';
+    }
+
+    // If win% loss is > 22%:
+    // If the player remains completely winning, cap severity so it's NOT a blunder:
+    if (playerScoreB >= 3.5) {
+        return '?!'; // Up a piece or queen, still completely winning
+    }
+    if (playerScoreB >= 1.8) {
+        return '?';  // Clearly winning (+1.8+), at worst a mistake
+    }
+
+    // Blunder (??): Decisive drop in evaluation that turns win into draw/loss or equal into lost
+    return '??';
 }
 
 export function getAnnotationDescription(annotation) {
     switch (annotation) {
+        case '📖': return 'Book Move';
         case '!!': return 'Brilliant Move';
-        case '!': return 'Strong Move';
+        case '!': return 'Great Move';
         case '★': return 'Best Move';
         case '✓': return 'Good Move';
         case '?!': return 'Inaccuracy';

@@ -4,11 +4,17 @@
 namespace TT {
     TTBucket* table = nullptr;
     int num_buckets = 0;
+    U64 bucket_mask = 0;
 
     void init(int mb_size) {
         if (mb_size < 1) mb_size = 1;
         int hash_size = 0x100000 * mb_size;
-        num_buckets = hash_size / sizeof(TTBucket);
+        int raw_buckets = hash_size / (int)sizeof(TTBucket);
+        num_buckets = 1;
+        while ((num_buckets << 1) > 0 && (num_buckets << 1) <= raw_buckets) {
+            num_buckets <<= 1;
+        }
+        bucket_mask = (U64)(num_buckets - 1);
 
         free_table();
         table = new TTBucket[num_buckets];
@@ -52,7 +58,7 @@ namespace TT {
     int read_hash_entry(U64 hash_key, int alpha, int beta, int depth, int ply, Move& best_move) {
         if (table == nullptr) return -32000;
 
-        int index = hash_key % num_buckets;
+        int index = (int)(hash_key & bucket_mask);
         TTBucket* bucket = &table[index];
 
         for (int i = 0; i < 4; i++) {
@@ -89,12 +95,38 @@ namespace TT {
         return -32000;
     }
 
+    bool probe_entry(U64 hash_key, int& score, int& depth, int& flag, Move& move, int ply) {
+        if (table == nullptr) return false;
+
+        int index = (int)(hash_key & bucket_mask);
+        TTBucket* bucket = &table[index];
+
+        for (int i = 0; i < 4; i++) {
+            TTEntry* entry = &bucket->entries[i];
+            U64 key = entry->hash_key;
+            U64 data = entry->data.load(std::memory_order_relaxed);
+
+            if (key == hash_key) {
+                U64 checksum = (hash_key >> 50) & 0x3FFFULL;
+                if (((data >> 50) & 0x3FFFULL) != checksum) {
+                    return false; // Torn read detected
+                }
+
+                unpack_data(data, score, depth, flag, move);
+                if (score > 19000) score -= ply;
+                if (score < -19000) score += ply;
+                return true;
+            }
+        }
+        return false;
+    }
+
     void write_hash_entry(U64 hash_key, int score, int depth, int ply, int hash_flag, Move best_move) {
         if (table == nullptr) return;
         if (score > 19000) score += ply;
         if (score < -19000) score -= ply;
 
-        int index = hash_key % num_buckets;
+        int index = (int)(hash_key & bucket_mask);
         TTBucket* bucket = &table[index];
 
         int replace_idx = 0;
@@ -116,6 +148,10 @@ namespace TT {
         }
 
         TTEntry* entry = &bucket->entries[replace_idx];
+        if (entry->hash_key == hash_key && best_move == 0) {
+            U64 old_data = entry->data.load(std::memory_order_relaxed);
+            best_move = old_data & 0xFFFFFFULL;
+        }
         U64 data = pack_data(score, depth, hash_flag, best_move, hash_key);
 
         entry->data.store(data, std::memory_order_relaxed);

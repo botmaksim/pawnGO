@@ -1,34 +1,65 @@
 #!/bin/bash
 
-# Configuration
-PAWNGO_CMD="/home/maksim/Programming/Projects/pawnGO/engine/build/pawnGO"
+# Compute script and project directories
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+PAWNGO_CMD="$PROJECT_DIR/engine/build/pawnGO"
+PAWNGO_DIR="$PROJECT_DIR/engine/build"
 CUTECHESS_CLI="/home/maksim/cutechess-cli/cutechess-cli"
-LOG_FILE="tournament.log"
-GAMES_DIR="games"
+LOG_FILE="$SCRIPT_DIR/tournament.log"
+GAMES_DIR="$SCRIPT_DIR/games"
 
 # Arguments
-SF_LEVEL=${1:-15}   # Default to Stockfish level 15 if not provided
-TC=${2:-"10+0.5"}  # Default to 10s + 0.5s increment if not provided
+SF_LEVEL=${1:-15}   # Default to Stockfish level 15 (GM level ~2500 Elo)
+TC=${2:-"5+0.1"}   # Default fast time control 5s + 0.1s increment for swift evaluation
 ROUNDS=${3:-5}     # 5 rounds of 2 games = 10 games total
 CONCURRENCY=${4:-2}
 
 # Setup
-rm -rf "$GAMES_DIR"/*
 mkdir -p "$GAMES_DIR"
+rm -f "$GAMES_DIR"/*
 
-echo "Starting Tournament: pawnGO vs Stockfish Level $SF_LEVEL" > "$LOG_FILE"
-echo "Time Control: $TC" >> "$LOG_FILE"
-echo "=================================" >> "$LOG_FILE"
+echo "==========================================================" | tee "$LOG_FILE"
+echo "Starting Tournament: pawnGO vs Stockfish Level $SF_LEVEL" | tee -a "$LOG_FILE"
+echo "Time Control: $TC | Rounds: $ROUNDS ($(($ROUNDS * 2)) games) | Concurrency: $CONCURRENCY" | tee -a "$LOG_FILE"
+echo "Engine Binary: $PAWNGO_CMD" | tee -a "$LOG_FILE"
+echo "==========================================================" | tee -a "$LOG_FILE"
 
-echo "Running Tournament with $ROUNDS rounds (2 games per round = $(($ROUNDS * 2)) games)..." | tee -a "$LOG_FILE"
+if [ "$SF_LEVEL" = "full" ] || [ "$SF_LEVEL" = "20" ]; then
+    SF_ENGINE_ARGS=(-engine name="Stockfish_Full_Power_17.1" cmd=stockfish "option.Skill Level=20" "option.UCI_LimitStrength=false")
+    echo "Using FULL UNCONSTRAINED Stockfish 17.1 (Maximum Strength ~3600+ Elo)" | tee -a "$LOG_FILE"
+elif [ "$SF_LEVEL" -gt 100 ] 2>/dev/null; then
+    SF_ENGINE_ARGS=(-engine name="Stockfish_Elo_$SF_LEVEL" cmd=stockfish "option.UCI_LimitStrength=true" "option.UCI_Elo=$SF_LEVEL")
+    echo "Using Calibrated Stockfish Strength: UCI_Elo = $SF_LEVEL" | tee -a "$LOG_FILE"
+else
+    SF_ENGINE_ARGS=(-engine name="Stockfish_Level_$SF_LEVEL" cmd=stockfish "option.Skill Level=$SF_LEVEL")
+    echo "Using Stockfish Skill Level: $SF_LEVEL" | tee -a "$LOG_FILE"
+fi
+
+SYZYGY_OPTS=()
+if [ -d "/home/maksim/CV/pawnGO/engine/3-4-5" ]; then
+    SYZYGY_OPTS=("option.SyzygyPath=/home/maksim/CV/pawnGO/engine/3-4-5")
+    SF_ENGINE_ARGS+=("${SYZYGY_OPTS[@]}")
+    echo "Syzygy 3-4-5 tablebases enabled for both engines." | tee -a "$LOG_FILE"
+fi
+
+OPENING_ARG=()
+if [ -f "$SCRIPT_DIR/openings.pgn" ]; then
+    OPENING_ARG=(-openings file="$SCRIPT_DIR/openings.pgn" format=pgn order=random)
+fi
 
 $CUTECHESS_CLI \
-    -engine name=pawnGO cmd="$PAWNGO_CMD" dir="/home/maksim/Programming/Projects/pawnGO/engine/build" option.MultiPV=1 \
-    -engine name="Stockfish_Level_$SF_LEVEL" cmd=stockfish "option.Skill Level=$SF_LEVEL" \
+    -engine name=pawnGO cmd="$PAWNGO_CMD" dir="$PAWNGO_DIR" option.MultiPV=1 "${SYZYGY_OPTS[@]}" \
+    "${SF_ENGINE_ARGS[@]}" \
     -each proto=uci tc=$TC \
+    "${OPENING_ARG[@]}" \
+    -draw movenumber=40 movecount=6 score=10 \
+    -resign movecount=4 score=700 \
+    -ratinginterval 1 \
     -games 2 -rounds $ROUNDS -concurrency $CONCURRENCY \
     -pgnout "$GAMES_DIR/match.pgn" \
-    >> "$LOG_FILE" 2>&1
+    2>&1 | tee -a "$LOG_FILE"
 
-echo "=================================" >> "$LOG_FILE"
-echo "Tournament Completed! Games saved nicely to $GAMES_DIR/match.pgn" | tee -a "$LOG_FILE"
+echo "==========================================================" | tee -a "$LOG_FILE"
+echo "Tournament Completed! Games saved to $GAMES_DIR/match.pgn" | tee -a "$LOG_FILE"

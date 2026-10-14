@@ -2,8 +2,9 @@ let engineInstance = null;
 let cmdQueue = [];
 
 var Module = {
+    mainScriptUrlOrBlob: new URL('pawngo_wasm.js?v=10', self.location.href).href,
     locateFile: function(path, prefix) {
-        return prefix + path + '?v=5';
+        return prefix + path + '?v=10';
     },
     print: function(text) {
         if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
@@ -27,7 +28,7 @@ var Module = {
     }
 };
 
-importScripts('pawngo_wasm.js?v=7');
+importScripts('pawngo_wasm.js?v=10');
 
 self.addEventListener('message', function(e) {
     if (typeof e.data === 'string') {

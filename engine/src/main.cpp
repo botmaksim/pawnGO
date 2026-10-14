@@ -50,6 +50,12 @@ void uciLoop() {
 
     log("UCI Loop started.");
 
+    std::ifstream syzygy_test("/home/maksim/CV/pawnGO/engine/3-4-5/KBBBvK.rtbw");
+    if (syzygy_test.good()) {
+        tb_init("/home/maksim/CV/pawnGO/engine/3-4-5");
+        log("Auto-initialized Syzygy 3-4-5 tablebases.");
+    }
+
     while (std::getline(std::cin, line)) {
         log("IN: " + line);
 
@@ -97,6 +103,8 @@ void uciLoop() {
             size_t fen_idx = line.find("fen ");
             size_t moves_idx = line.find(" moves");
             
+            Search::game_history_len = 0;
+
             if (fen_idx != std::string::npos) {
                 std::string fen = line.substr(fen_idx + 4);
                 if (moves_idx != std::string::npos) fen = line.substr(fen_idx + 4, moves_idx - (fen_idx + 4));
@@ -140,6 +148,9 @@ void uciLoop() {
                         }
                     }
                     if (matched_move != 0) {
+                        if (Search::game_history_len < Search::MAX_GAME_MOVES) {
+                            Search::game_history[Search::game_history_len++] = pos.hash_key;
+                        }
                         Board::make_move(pos, matched_move, 0);
                     }
                 }
@@ -232,8 +243,10 @@ void uciLoop() {
             size_t binc_idx = line.find("binc ");
             size_t movetime_idx = line.find("movetime ");
             
+            bool is_fixed_movetime = false;
             if (movetime_idx != std::string::npos) {
                 time_for_move = std::stoll(line.substr(movetime_idx + 9));
+                is_fixed_movetime = true;
             } else if (wtime_idx != std::string::npos && btime_idx != std::string::npos) {
                 long long wtime = std::stoll(line.substr(wtime_idx + 6));
                 long long btime = std::stoll(line.substr(btime_idx + 6));
@@ -243,8 +256,9 @@ void uciLoop() {
                 long long time_left = (pos.side == WHITE) ? wtime : btime;
                 long long increment = (pos.side == WHITE) ? winc : binc;
                 
-                time_for_move = time_left / 30 + increment / 2;
-                if (time_for_move < 50) time_for_move = 50;
+                time_for_move = time_left / 22 + (increment * 3) / 4;
+                if (time_for_move > time_left / 2) time_for_move = time_left / 2;
+                if (time_for_move < 25) time_for_move = 25;
             }
             
             // Reset stopped flag before launching!
@@ -254,26 +268,13 @@ void uciLoop() {
             int current_search_id = Search::search_id.load(std::memory_order_relaxed);
 
             // Capture the current main thread's board state
-            std::array<U64, 12> t_pieceBB;
-            for (int i = 0; i < 12; i++) t_pieceBB[i] = pos.pieceBB[i];
-            std::array<U64, 3> t_occ;
-            for (int i = 0; i < 3; i++) t_occ[i] = pos.occupancies[i];
-            int t_side = pos.side;
-            int t_ep = pos.enpassant;
-            int t_cas = pos.castle;
-            U64 t_hash = pos.hash_key;
+            BoardState local_pos = pos;
 
             // Launch search in a background thread so UCI remains responsive
             search_thread = std::thread([=]() {
-                BoardState thread_pos;
-                for (int i = 0; i < 12; i++) thread_pos.pieceBB[i] = t_pieceBB[i];
-                for (int i = 0; i < 3; i++) thread_pos.occupancies[i] = t_occ[i];
-                thread_pos.side = t_side;
-                thread_pos.enpassant = t_ep;
-                thread_pos.castle = t_cas;
-                thread_pos.hash_key = t_hash;
+                BoardState thread_pos = local_pos;
                 Search::thread_search_id = current_search_id;
-                Search::search_position(thread_pos, depth, current_search_id, (depth_idx == std::string::npos) ? time_for_move : -1);
+                Search::search_position(thread_pos, depth, current_search_id, (depth_idx == std::string::npos) ? time_for_move : -1, is_fixed_movetime);
             });
             
             if (time_for_move != -1 && depth_idx == std::string::npos) {
@@ -305,44 +306,39 @@ void uciLoop() {
 #ifdef __EMSCRIPTEN__
 #include <mutex>
 #include <condition_variable>
+#include <atomic>
 
 std::thread wasm_search_thread_instance;
 std::mutex wasm_search_mtx;
+std::condition_variable wasm_search_cv;
 bool wasm_search_ready = false;
 bool wasm_search_quit = false;
+std::atomic<bool> wasm_search_is_running(false);
 
 BoardState wasm_thread_pos;
 int wasm_thread_depth = 15;
 int wasm_thread_search_id = 0;
 long long wasm_thread_time_for_move = -1;
+bool wasm_thread_is_fixed_movetime = false;
 
 void wasm_search_worker() {
     while (true) {
-        bool ready;
-        bool quit;
-        {
-            std::lock_guard<std::mutex> lock(wasm_search_mtx);
-            ready = wasm_search_ready;
-            quit = wasm_search_quit;
-        }
-        if (quit) break;
-        if (!ready) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(5));
-            continue;
-        }
-        
-        {
-            std::lock_guard<std::mutex> lock(wasm_search_mtx);
-            wasm_search_ready = false;
-        }
+        std::unique_lock<std::mutex> lock(wasm_search_mtx);
+        wasm_search_cv.wait(lock, []{ return wasm_search_ready || wasm_search_quit; });
+        if (wasm_search_quit) break;
+        wasm_search_ready = false;
         
         BoardState p = wasm_thread_pos;
         int d = wasm_thread_depth;
         int s_id = wasm_thread_search_id;
         long long t_ms = wasm_thread_time_for_move;
+        bool is_fixed = wasm_thread_is_fixed_movetime;
+        lock.unlock();
 
         Search::thread_search_id = s_id;
-        Search::search_position(p, d, s_id, t_ms);
+        wasm_search_is_running = true;
+        Search::search_position(p, d, s_id, t_ms, is_fixed);
+        wasm_search_is_running = false;
     }
 }
 #endif
@@ -359,6 +355,7 @@ void execute_uci_command(const std::string& line, std::thread& search_thread) {
             std::lock_guard<std::mutex> lock(wasm_search_mtx);
             wasm_search_quit = true;
         }
+        wasm_search_cv.notify_one();
 #else
         if (search_thread.joinable()) search_thread.join();
 #endif
@@ -401,11 +398,17 @@ void execute_uci_command(const std::string& line, std::thread& search_thread) {
             Search::init_threads(threads);
             log("Threads set to " + std::to_string(threads));
         }
+    } else if (line.find("setoption name Hash value ") != std::string::npos) {
+        int mb = std::stoi(line.substr(26));
+        TT::init(mb);
+        log("Hash table set to " + std::to_string(mb) + " MB");
     } else if (line.find("position") == 0) {
         std::string startpos = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
         size_t fen_idx = line.find("fen ");
         size_t moves_idx = line.find(" moves");
         
+        Search::game_history_len = 0;
+
         if (fen_idx != std::string::npos) {
             std::string fen = line.substr(fen_idx + 4);
             if (moves_idx != std::string::npos) fen = line.substr(fen_idx + 4, moves_idx - (fen_idx + 4));
@@ -449,6 +452,9 @@ void execute_uci_command(const std::string& line, std::thread& search_thread) {
                     }
                 }
                 if (matched_move != 0) {
+                    if (Search::game_history_len < Search::MAX_GAME_MOVES) {
+                        Search::game_history[Search::game_history_len++] = pos.hash_key;
+                    }
                     Board::make_move(pos, matched_move, 0);
                 }
             }
@@ -475,7 +481,7 @@ void execute_uci_command(const std::string& line, std::thread& search_thread) {
         Board::perft_test(pos, depth);
     } else if (line.find("go") == 0) {
         bool is_game = (line.find("wtime") != std::string::npos || line.find("btime") != std::string::npos || line.find("movetime") != std::string::npos);
-        if (UseOwnBook && !BookFile.empty() && is_game && game_ply <= 4) {
+        if (UseOwnBook && !BookFile.empty() && is_game && game_ply <= 32) {
             auto b_moves = Polyglot::get_all_book_moves(pos, BookFile);
             Move book_move = 0;
             if (!b_moves.empty()) {
@@ -526,7 +532,11 @@ void execute_uci_command(const std::string& line, std::thread& search_thread) {
         
         // Stop any ongoing search first
         Search::stopped = true;
-#ifndef __EMSCRIPTEN__
+#ifdef __EMSCRIPTEN__
+        while (wasm_search_is_running.load(std::memory_order_relaxed)) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        }
+#else
         if (search_thread.joinable()) search_thread.join();
 #endif
 
@@ -543,8 +553,10 @@ void execute_uci_command(const std::string& line, std::thread& search_thread) {
         size_t binc_idx = line.find("binc ");
         size_t movetime_idx = line.find("movetime ");
         
+        bool is_fixed_movetime = false;
         if (movetime_idx != std::string::npos) {
             time_for_move = std::stoll(line.substr(movetime_idx + 9));
+            is_fixed_movetime = true;
         } else if (wtime_idx != std::string::npos && btime_idx != std::string::npos) {
             long long wtime = std::stoll(line.substr(wtime_idx + 6));
             long long btime = std::stoll(line.substr(btime_idx + 6));
@@ -554,8 +566,9 @@ void execute_uci_command(const std::string& line, std::thread& search_thread) {
             long long time_left = (pos.side == WHITE) ? wtime : btime;
             long long increment = (pos.side == WHITE) ? winc : binc;
             
-            time_for_move = time_left / 30 + increment / 2;
-            if (time_for_move < 50) time_for_move = 50;
+            time_for_move = time_left / 22 + (increment * 3) / 4;
+            if (time_for_move > time_left / 2) time_for_move = time_left / 2;
+            if (time_for_move < 20) time_for_move = 20;
         }
         
         // Reset stopped flag before launching!
@@ -565,44 +578,25 @@ void execute_uci_command(const std::string& line, std::thread& search_thread) {
         int current_search_id = Search::search_id.load(std::memory_order_relaxed);
 
         // Capture the current main thread's board state
-        std::array<U64, 12> t_pieceBB;
-        for (int i = 0; i < 12; i++) t_pieceBB[i] = pos.pieceBB[i];
-        std::array<U64, 3> t_occ;
-        for (int i = 0; i < 3; i++) t_occ[i] = pos.occupancies[i];
-        int t_side = pos.side;
-        int t_ep = pos.enpassant;
-        int t_cas = pos.castle;
-        U64 t_hash = pos.hash_key;
+        BoardState thread_pos = pos;
 
         // Launch search in a background thread so UCI remains responsive
 #ifdef __EMSCRIPTEN__
-        BoardState thread_pos;
-        for (int i = 0; i < 12; i++) thread_pos.pieceBB[i] = t_pieceBB[i];
-        for (int i = 0; i < 3; i++) thread_pos.occupancies[i] = t_occ[i];
-        thread_pos.side = t_side;
-        thread_pos.enpassant = t_ep;
-        thread_pos.castle = t_cas;
-        thread_pos.hash_key = t_hash;
-        
         {
             std::lock_guard<std::mutex> lock(wasm_search_mtx);
             wasm_thread_pos = thread_pos;
             wasm_thread_depth = depth;
             wasm_thread_search_id = current_search_id;
             wasm_thread_time_for_move = (depth_idx == std::string::npos) ? time_for_move : -1;
+            wasm_thread_is_fixed_movetime = is_fixed_movetime;
             wasm_search_ready = true;
         }
+        wasm_search_cv.notify_one();
 #else
         search_thread = std::thread([=]() {
-            BoardState thread_pos;
-            for (int i = 0; i < 12; i++) thread_pos.pieceBB[i] = t_pieceBB[i];
-            for (int i = 0; i < 3; i++) thread_pos.occupancies[i] = t_occ[i];
-            thread_pos.side = t_side;
-            thread_pos.enpassant = t_ep;
-            thread_pos.castle = t_cas;
-            thread_pos.hash_key = t_hash;
+            BoardState local_search_pos = thread_pos;
             Search::thread_search_id = current_search_id;
-            Search::search_position(thread_pos, depth, current_search_id, (depth_idx == std::string::npos) ? time_for_move : -1);
+            Search::search_position(local_search_pos, depth, current_search_id, (depth_idx == std::string::npos) ? time_for_move : -1, is_fixed_movetime);
         });
 #endif
         
@@ -630,9 +624,16 @@ int main() {
 
     MoveGen::init_all();
     Zobrist::init();
+#ifdef __EMSCRIPTEN__
     TT::init(64);
+#else
+    TT::init(64);
+#endif
     Search::init_lmr_table();
     const char* nnue_paths[] = {
+        "src/eval/nnue/nn-62ef826d1a6d.nnue",
+        "../src/eval/nnue/nn-62ef826d1a6d.nnue",
+        "engine/src/eval/nnue/nn-62ef826d1a6d.nnue",
         "../src/nnue/nn-62ef826d1a6d.nnue",
         "src/nnue/nn-62ef826d1a6d.nnue",
         "nnue/nn-62ef826d1a6d.nnue",
@@ -640,7 +641,7 @@ int main() {
     };
     
     bool loaded = false;
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 7; i++) {
         std::ifstream f(nnue_paths[i]);
         if (f.good()) {
             Evaluation::init_nnue(nnue_paths[i]);

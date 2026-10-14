@@ -1,5 +1,4 @@
 #include "movegen.h"
-#include "magics.h"
 
 namespace MoveGen {
     U64 pawn_attacks[2][64];
@@ -69,7 +68,7 @@ namespace MoveGen {
         }
     }
 
-    const int bishop_relevant_bits[64] = {
+    extern const int bishop_relevant_bits[64] = {
       6, 5, 5, 5, 5, 5, 5, 6, 
       5, 5, 5, 5, 5, 5, 5, 5, 
       5, 5, 7, 7, 7, 7, 5, 5, 
@@ -80,7 +79,7 @@ namespace MoveGen {
       6, 5, 5, 5, 5, 5, 5, 6
     };
 
-    const int rook_relevant_bits[64] = {
+    extern const int rook_relevant_bits[64] = {
       12, 11, 11, 11, 11, 11, 11, 12, 
       11, 10, 10, 10, 10, 10, 10, 11, 
       11, 10, 10, 10, 10, 10, 10, 11, 
@@ -172,23 +171,5 @@ namespace MoveGen {
     void init_all() {
         init_leapers();
         init_sliders();
-    }
-
-    U64 get_bishop_attacks(int square, U64 occupancy) {
-        occupancy &= bishop_masks[square];
-        occupancy *= bishop_magic_numbers[square];
-        occupancy >>= 64 - bishop_relevant_bits[square];
-        return bishop_attacks[square][occupancy];
-    }
-
-    U64 get_rook_attacks(int square, U64 occupancy) {
-        occupancy &= rook_masks[square];
-        occupancy *= rook_magic_numbers[square];
-        occupancy >>= 64 - rook_relevant_bits[square];
-        return rook_attacks[square][occupancy];
-    }
-
-    U64 get_queen_attacks(int square, U64 occupancy) {
-        return get_bishop_attacks(square, occupancy) | get_rook_attacks(square, occupancy);
     }
 }

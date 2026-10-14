@@ -9,6 +9,7 @@ namespace Board {
         int captured_piece;
         int enpassant;
         int castle;
+        int rule50;
         U64 hash_key;
     };
 

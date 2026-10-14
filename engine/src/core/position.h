@@ -7,6 +7,7 @@ struct BoardState {
     int side;
     int enpassant;
     int castle;
+    int rule50;
     U64 hash_key;
 
     BoardState() {
@@ -15,6 +16,7 @@ struct BoardState {
         side = 0;
         enpassant = no_sq;
         castle = 0;
+        rule50 = 0;
         hash_key = 0;
     }
 };
