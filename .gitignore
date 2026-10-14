@@ -41,5 +41,11 @@ engine/scripts/games/
 engine/tests
 tests
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
 #*.nnue
 3-4-5/

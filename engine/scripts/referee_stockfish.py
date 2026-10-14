@@ -83,6 +83,24 @@ def run_referee(pgn_path, depth=12):
         pawngo_total_cpl = 0
         pawngo_total_moves = 0
         pawngo_blunders = 0
+        pawngo_wins = 0
+        pawngo_draws = 0
+        pawngo_losses = 0
+        pawngo_white_games = 0
+        pawngo_white_cpl = 0
+        pawngo_white_moves = 0
+        pawngo_white_wins = 0
+        pawngo_white_draws = 0
+        pawngo_black_games = 0
+        pawngo_black_cpl = 0
+        pawngo_black_moves = 0
+        pawngo_black_wins = 0
+        pawngo_black_draws = 0
+        pawngo_moves_best = 0
+        pawngo_moves_good = 0
+        pawngo_moves_inacc = 0
+        pawngo_moves_mistake = 0
+        pawngo_moves_blunder = 0
 
         while True:
             game = chess.pgn.read_game(f)
@@ -123,7 +141,17 @@ def run_referee(pgn_path, depth=12):
                 if is_pawngo_move:
                     pawngo_game_cpl += mover_loss
                     pawngo_game_moves += 1
-                    if mover_loss >= 150:
+                    
+                    if mover_loss <= 15:
+                        pawngo_moves_best += 1
+                    elif mover_loss <= 40:
+                        pawngo_moves_good += 1
+                    elif mover_loss <= 90:
+                        pawngo_moves_inacc += 1
+                    elif mover_loss < 180:
+                        pawngo_moves_mistake += 1
+                    else:
+                        pawngo_moves_blunder += 1
                         game_blunders.append((ply // 2 + 1, "White" if turn == chess.WHITE else "Black", move.uci(), best_move, mover_loss / 100))
 
             final_eval, final_mate, mate_val, _ = evaluate_pos(board)
@@ -148,9 +176,34 @@ def run_referee(pgn_path, depth=12):
             for b in game_blunders:
                 print(f"  Move {b[0]} ({b[1]}): played {b[2]} instead of SF best {b[3]} (eval drop: -{b[4]:.2f})")
 
+            # Score tracking
+            if is_pawngo_white:
+                pawngo_white_games += 1
+                pawngo_white_cpl += pawngo_game_cpl
+                pawngo_white_moves += pawngo_game_moves
+                if result == "1-0":
+                    pawngo_wins += 1
+                    pawngo_white_wins += 1
+                elif result == "0-1":
+                    pawngo_losses += 1
+                elif result == "1/2-1/2":
+                    pawngo_draws += 1
+                    pawngo_white_draws += 1
+            elif is_pawngo_black:
+                pawngo_black_games += 1
+                pawngo_black_cpl += pawngo_game_cpl
+                pawngo_black_moves += pawngo_game_moves
+                if result == "0-1":
+                    pawngo_wins += 1
+                    pawngo_black_wins += 1
+                elif result == "1-0":
+                    pawngo_losses += 1
+                elif result == "1/2-1/2":
+                    pawngo_draws += 1
+                    pawngo_black_draws += 1
+
             pawngo_total_cpl += pawngo_game_cpl
             pawngo_total_moves += pawngo_game_moves
-            pawngo_blunders += len(game_blunders)
             print()
 
         sf_cmd("quit")
@@ -159,12 +212,33 @@ def run_referee(pgn_path, depth=12):
         if pawngo_total_moves > 0:
             overall_acpl = pawngo_total_cpl / pawngo_total_moves
             overall_acc = max(0, min(100, 100 - (overall_acpl * 0.4)))
+            total_points = pawngo_wins + 0.5 * pawngo_draws
+            score_pct = (total_points / game_num) * 100 if game_num > 0 else 0
+
+            white_acc = max(0, min(100, 100 - ((pawngo_white_cpl / max(1, pawngo_white_moves)) * 0.4))) if pawngo_white_moves > 0 else 0
+            white_pts = pawngo_white_wins + 0.5 * pawngo_white_draws
+
+            black_acc = max(0, min(100, 100 - ((pawngo_black_cpl / max(1, pawngo_black_moves)) * 0.4))) if pawngo_black_moves > 0 else 0
+            black_pts = pawngo_black_wins + 0.5 * pawngo_black_draws
+
             print("=================================================================")
-            print("                      OVERALL REFEREE VERDICT                    ")
-            print(f"Total Games Reviewed: {game_num}")
-            print(f"pawnGO Overall Accuracy: {overall_acc:.1f}%")
-            print(f"pawnGO Average Centipawn Loss (ACPL): {overall_acpl:.1f} cp")
-            print(f"Total pawnGO Blunders: {pawngo_blunders}")
+            print("                 FULL STOCKFISH 17.1 REFEREE VERDICT             ")
+            print("=================================================================")
+            print(f"Total Match Games   : {game_num}")
+            print(f"pawnGO Total Points : {total_points:.1f} / {game_num} ({score_pct:.1f}%)")
+            print(f"Match Record        : +{pawngo_wins} -{pawngo_losses} ={pawngo_draws}")
+            print(f"Overall Accuracy    : {overall_acc:.1f}%")
+            print(f"Average ACPL        : {overall_acpl:.1f} cp")
+            print("-----------------------------------------------------------------")
+            print(f"White Performance   : {white_pts:.1f}/{pawngo_white_games} pts | Accuracy: {white_acc:.1f}%")
+            print(f"Black Performance   : {black_pts:.1f}/{pawngo_black_games} pts | Accuracy: {black_acc:.1f}%")
+            print("-----------------------------------------------------------------")
+            print(f"Move Quality Distribution ({pawngo_total_moves} pawnGO moves evaluated):")
+            print(f"  ★ Best Moves       : {pawngo_moves_best} ({(pawngo_moves_best/pawngo_total_moves)*100:.1f}%)")
+            print(f"  ✓ Good Moves       : {pawngo_moves_good} ({(pawngo_moves_good/pawngo_total_moves)*100:.1f}%)")
+            print(f"  ?! Inaccuracies    : {pawngo_moves_inacc} ({(pawngo_moves_inacc/pawngo_total_moves)*100:.1f}%)")
+            print(f"  ? Mistakes         : {pawngo_moves_mistake} ({(pawngo_moves_mistake/pawngo_total_moves)*100:.1f}%)")
+            print(f"  ?? Blunders        : {pawngo_moves_blunder} ({(pawngo_moves_blunder/pawngo_total_moves)*100:.1f}%)")
             print("=================================================================")
 
 if __name__ == "__main__":
