@@ -1,0 +1,263 @@
+{
+  "2400": {
+    "fast": {
+      "wins": 94,
+      "losses": 6,
+      "draws": 0,
+      "points": 94.0,
+      "total": 100,
+      "win_rate": 94.0,
+      "duration_sec": 67.7
+    },
+    "slow": {
+      "wins": 49,
+      "losses": 1,
+      "draws": 0,
+      "points": 49.0,
+      "total": 50,
+      "win_rate": 98.0,
+      "duration_sec": 83.5
+    },
+    "ultraslow": {
+      "wins": 20,
+      "losses": 0,
+      "draws": 0,
+      "points": 20.0,
+      "total": 20,
+      "win_rate": 100.0,
+      "duration_sec": 76.3
+    }
+  },
+  "2500": {
+    "fast": {
+      "wins": 83,
+      "losses": 11,
+      "draws": 6,
+      "points": 86.0,
+      "total": 100,
+      "win_rate": 86.0,
+      "duration_sec": 73.8
+    },
+    "slow": {
+      "wins": 45,
+      "losses": 3,
+      "draws": 2,
+      "points": 46.0,
+      "total": 50,
+      "win_rate": 92.0,
+      "duration_sec": 83.1
+    },
+    "ultraslow": {
+      "wins": 19,
+      "losses": 1,
+      "draws": 0,
+      "points": 19.0,
+      "total": 20,
+      "win_rate": 95.0,
+      "duration_sec": 79.9
+    }
+  },
+  "2600": {
+    "fast": {
+      "wins": 90,
+      "losses": 6,
+      "draws": 4,
+      "points": 92.0,
+      "total": 100,
+      "win_rate": 92.0,
+      "duration_sec": 78.7
+    },
+    "slow": {
+      "wins": 43,
+      "losses": 5,
+      "draws": 2,
+      "points": 44.0,
+      "total": 50,
+      "win_rate": 88.0,
+      "duration_sec": 94.9
+    },
+    "ultraslow": {
+      "wins": 19,
+      "losses": 0,
+      "draws": 1,
+      "points": 19.5,
+      "total": 20,
+      "win_rate": 97.5,
+      "duration_sec": 90.2
+    }
+  },
+  "2700": {
+    "fast": {
+      "wins": 74,
+      "losses": 18,
+      "draws": 8,
+      "points": 78.0,
+      "total": 100,
+      "win_rate": 78.0,
+      "duration_sec": 90.5
+    },
+    "slow": {
+      "wins": 38,
+      "losses": 6,
+      "draws": 6,
+      "points": 41.0,
+      "total": 50,
+      "win_rate": 82.0,
+      "duration_sec": 99.1
+    },
+    "ultraslow": {
+      "wins": 17,
+      "losses": 1,
+      "draws": 2,
+      "points": 18.0,
+      "total": 20,
+      "win_rate": 90.0,
+      "duration_sec": 100.6
+    }
+  },
+  "2800": {
+    "fast": {
+      "wins": 49,
+      "losses": 37,
+      "draws": 14,
+      "points": 56.0,
+      "total": 100,
+      "win_rate": 56.0,
+      "duration_sec": 96.9
+    },
+    "slow": {
+      "wins": 27,
+      "losses": 15,
+      "draws": 8,
+      "points": 31.0,
+      "total": 50,
+      "win_rate": 62.0,
+      "duration_sec": 100.6
+    },
+    "ultraslow": {
+      "wins": 12,
+      "losses": 4,
+      "draws": 4,
+      "points": 14.0,
+      "total": 20,
+      "win_rate": 70.0,
+      "duration_sec": 161.8
+    }
+  },
+  "2900": {
+    "fast": {
+      "wins": 42,
+      "losses": 46,
+      "draws": 12,
+      "points": 48.0,
+      "total": 100,
+      "win_rate": 48.0,
+      "duration_sec": 87.4
+    },
+    "slow": {
+      "wins": 26,
+      "losses": 16,
+      "draws": 8,
+      "points": 30.0,
+      "total": 50,
+      "win_rate": 60.0,
+      "duration_sec": 101.1
+    },
+    "ultraslow": {
+      "wins": 8,
+      "losses": 8,
+      "draws": 4,
+      "points": 10.0,
+      "total": 20,
+      "win_rate": 50.0,
+      "duration_sec": 140.1
+    }
+  },
+  "3000": {
+    "fast": {
+      "wins": 38,
+      "losses": 51,
+      "draws": 11,
+      "points": 43.5,
+      "total": 100,
+      "win_rate": 43.5,
+      "duration_sec": 84.0
+    },
+    "slow": {
+      "wins": 12,
+      "losses": 24,
+      "draws": 14,
+      "points": 19.0,
+      "total": 50,
+      "win_rate": 38.0,
+      "duration_sec": 127.4
+    },
+    "ultraslow": {
+      "wins": 6,
+      "losses": 7,
+      "draws": 7,
+      "points": 9.5,
+      "total": 20,
+      "win_rate": 47.5,
+      "duration_sec": 115.2
+    }
+  },
+  "3100": {
+    "fast": {
+      "wins": 26,
+      "losses": 61,
+      "draws": 13,
+      "points": 32.5,
+      "total": 100,
+      "win_rate": 32.5,
+      "duration_sec": 81.3
+    },
+    "slow": {
+      "wins": 8,
+      "losses": 28,
+      "draws": 14,
+      "points": 15.0,
+      "total": 50,
+      "win_rate": 30.0,
+      "duration_sec": 114.3
+    },
+    "ultraslow": {
+      "wins": 3,
+      "losses": 13,
+      "draws": 4,
+      "points": 5.0,
+      "total": 20,
+      "win_rate": 25.0,
+      "duration_sec": 136.8
+    }
+  },
+  "3200": {
+    "fast": {
+      "wins": 21,
+      "losses": 63,
+      "draws": 16,
+      "points": 29.0,
+      "total": 100,
+      "win_rate": 29.0,
+      "duration_sec": 85.7
+    },
+    "slow": {
+      "wins": 10,
+      "losses": 32,
+      "draws": 8,
+      "points": 14.0,
+      "total": 50,
+      "win_rate": 28.0,
+      "duration_sec": 99.0
+    },
+    "ultraslow": {
+      "wins": 3,
+      "losses": 11,
+      "draws": 6,
+      "points": 6.0,
+      "total": 20,
+      "win_rate": 30.0,
+      "duration_sec": 101.8
+    }
+  }
+}

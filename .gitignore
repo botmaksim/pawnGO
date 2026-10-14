@@ -36,7 +36,10 @@ server/*.log
 tournament.log
 games/*.pgn
 engine/scripts/games/
+engine/scripts/benchmarks/*.pgn
+engine/scripts/benchmarks/*.log
 *.png
+!assets/*.png
 
 engine/tests
 tests

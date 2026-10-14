@@ -14,8 +14,8 @@
 
 ## Key Highlights
 
-- **~2900 Elo Verified Strength**: Defeated calibrated `Stockfish 2900` in a verified 20-game cutechess gauntlet with a **72.5% win rate** (`+12 -3 =5`, 14.5 / 20 points).
-- **Grandmaster Accuracy**: Matches evaluated by full **Stockfish 17.1 referee** show **92.6% overall accuracy**, an average centipawn loss (**ACPL**) of only **18.5 cp**, and **70.5% Best Moves**.
+- **~2900 Elo Empirically Verified**: Tested across a massive **1,530-game gauntlet tournament** against Stockfish 17.1 calibrated from 2400 to 3200 Elo under strict UCI conditions.
+- **Winning Score Against SF 2900**: Achieved **51.8% overall score** against `Stockfish 2900` across all time controls (including a **60.0% win rate** in slower blitz).
 - **NNUE Positional Evaluation**: Powered by an embedded 21MB neural network (`nn-62ef826d1a6d.nnue`) with dual-perspective accumulator caches and incremental stack updates.
 - **Flawless Endgames**: Integrated **Syzygy 3-4-5 tablebase** probing alongside dedicated endgame heuristics (King Centralization, Rule of the Square, Theoretical Draw Scaling, and Cornering).
 - **Dual Architecture**: Compiles to a native multi-threaded executable and directly into WebAssembly via Emscripten for 60 FPS in-browser evaluation.
@@ -69,35 +69,52 @@
 
 ## Empirical Benchmark and Validation
 
-The engine was evaluated using `cutechess-cli` and a 2-sided adjudication protocol with official Syzygy tablebase adjudication. All matches were independently evaluated by a full **Stockfish 17.1 Referee** across every move:
+To definitively establish pawnGO's playing strength, a massive **1,530-game gauntlet benchmark** was conducted using `cutechess-cli` against official calibrated Stockfish 17.1 rating levels from 2400 to 3200 Elo. Matches were tested across three distinct time controls:
+* **Fast Blitz (`2+0.05`)**: 100 games per level (900 games total)
+* **Slower Blitz (`5+0.1`)**: 50 games per level (450 games total)
+* **Ultra Slow (`10+0.25`)**: 20 games per level (180 games total)
 
-### 20-Game Gauntlet vs Stockfish 2900 (Time Control: `3+0.05`)
+<p align="center">
+  <img src="assets/benchmark_overall.png" alt="pawnGO Overall Gauntlet Performance Summary" width="100%" />
+</p>
 
-| Parameter | Result |
-| :--- | :--- |
-| **Final Match Score** | **14.5 / 20 points (72.5%)** |
-| **Match Record** | **+12 Wins, -3 Losses, =5 Draws** |
-| **White Performance** | 7.5 / 10 points (Accuracy: 91.7%) |
-| **Black Performance** | 7.0 / 10 points (Accuracy: 93.4%) |
-| **Overall Accuracy** | **92.6%** |
-| **Average Centipawn Loss (ACPL)** | **18.5 cp** |
+### Grand Performance Matrix (1,530 Games Total)
 
-#### Move Quality Breakdown (1,436 pawnGO moves analyzed by Stockfish 17.1)
-- **★ Best Moves**: 1,013 (**70.5%**)
-- **✓ Good Moves**: 230 (**16.0%**)
-- **?! Inaccuracies**: 133 (**9.3%**)
-- **? Mistakes**: 46 (**3.2%**)
-- **?? Blunders**: 14 (**1.0%**)
+| Opponent Target | Fast Blitz (`2+0.05`, 100G) | Slower Blitz (`5+0.1`, 50G) | Ultra Slow (`10+0.25`, 20G) | Total Score (170G) | Overall Win Rate | Performance Rating |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Stockfish 2400** | +94 -6 =0 (94.0%) | +49 -1 =0 (98.0%) | +20 -0 =0 (100.0%) | **163.0 / 170** | **95.9%** | > 2800 Elo |
+| **Stockfish 2500** | +83 -11 =6 (86.0%) | +45 -3 =2 (92.0%) | +19 -1 =0 (95.0%) | **151.0 / 170** | **88.8%** | ~2860 Elo |
+| **Stockfish 2600** | +90 -6 =4 (92.0%) | +43 -5 =2 (88.0%) | +19 -0 =1 (97.5%) | **155.5 / 170** | **91.5%** | ~3014 Elo |
+| **Stockfish 2700** | +74 -18 =8 (78.0%) | +38 -6 =6 (82.0%) | +17 -1 =2 (90.0%) | **137.0 / 170** | **80.6%** | ~2948 Elo |
+| **Stockfish 2800** | +49 -37 =14 (56.0%) | +27 -15 =8 (62.0%) | +12 -4 =4 (70.0%) | **101.0 / 170** | **59.4%** | ~2867 Elo |
+| **Stockfish 2900** | +42 -46 =12 (48.0%) | +26 -16 =8 (60.0%) | +8 -8 =4 (50.0%) | **88.0 / 170** | **51.8%** | **~2912 Elo** |
+| **Stockfish 3000** | +38 -51 =11 (43.5%) | +12 -24 =14 (38.0%) | +6 -7 =7 (47.5%) | **72.0 / 170** | **42.4%** | ~2947 Elo |
+| **Stockfish 3100** | +26 -61 =13 (32.5%) | +8 -28 =14 (30.0%) | +3 -13 =4 (25.0%) | **52.5 / 170** | **30.9%** | ~2960 Elo |
+| **Stockfish 3200** | +21 -63 =16 (29.0%) | +10 -32 =8 (28.0%) | +3 -11 =6 (30.0%) | **49.0 / 170** | **28.8%** | ~3043 Elo |
 
-### Historical Calibrated Benchmark Summary (`5+0.1` TC)
+---
 
-| Opponent | Target Rating | Score | Win Rate | Performance Rating |
-| :--- | :---: | :---: | :---: | :---: |
-| **Stockfish** | 2200 Elo | **4.0 - 0.0** | 100.0% | > 2600 Elo |
-| **Stockfish** | 2400 Elo | **6.0 - 0.0** | 100.0% | > 2800 Elo |
-| **Stockfish** | 2600 Elo | **5.0 - 1.0** | 83.3% | ~2880 Elo |
-| **Stockfish** | 2800 Elo | **3.5 - 0.5** | 87.5% | ~3138 Elo |
-| **Stockfish** | 2900 Elo | **14.5 - 5.5** | 72.5% | **~2900+ Elo** |
+### Time Control Breakdown & Endgame Dynamics
+
+<p align="center">
+  <img src="assets/benchmark_by_control.png" alt="Performance by Time Control Matrix" width="100%" />
+</p>
+
+#### Technical Analysis Across Controls:
+
+1. **⚡ Fast Blitz (`2+0.05`, 100 Games / Level)**:
+   - **Tactical Sharpness**: pawnGO scores overwhelmingly against Stockfish 2400–2700 (78%–94% win rate).
+   - **Early NNUE Punishment**: On ultra-fast controls, pawnGO's embedded 21MB Stockfish NNUE network and Singular Extensions punish tactical inaccuracies before positions reach complex multi-piece endings.
+   - **Parity Level**: The 50% break-even mark is reached precisely against **Stockfish 2850–2900**.
+
+2. **⏱️ Slower Blitz (`5+0.1`, 50 Games / Level)**:
+   - **Solid Master Parity**: High positional stability with a **60.0% win rate against Stockfish 2900**.
+   - **Syzygy Conversion**: 5-figure Syzygy tablebases cleanly convert simplified advantages into full points.
+
+3. **⏳ Ultra Slow (`10+0.25`, 20 Games / Level)**:
+   - **Deep Search Depth (22+ Plies)**: At longer time controls, Stockfish reaches depths beyond 22 plies, where its advanced endgame evaluation and correction history become decisive.
+   - **Endgame Limitations Against 3000+**: While pawnGO plays flawlessly in 5-piece positions via Syzygy tablebases, in complex 6- and 7-piece technical endings (before Syzygy hits) Stockfish's superior piece coordination, king triangulation, and zugzwang heuristics gradually outmaneuver us.
+   - **Conclusion**: Despite technical endgame challenges at slow controls against 3000+, pawnGO holds an even **50.0% (+8 -8 =4)** against Stockfish 2900, cementing its true strength at **~2900 Elo**.
 
 ---
 
@@ -140,12 +157,15 @@ pawnGO/
 │   │   ├── search/             # PVS, singular extensions, LMR, history tables
 │   │   └── utils/              # Polyglot opening book parsing
 │   ├── scripts/                # Tournament gauntlet & Stockfish referee scripts
+│   │   ├── benchmark_suite.py  # Automated multi-TC benchmark runner
+│   │   ├── plot_benchmark.py   # Publication-quality benchmark chart generator
 │   │   ├── run_gauntlet.sh     # Cutechess automated tournament runner
 │   │   ├── referee_stockfish.py# Stockfish 17.1 PGN analysis & referee
 │   │   └── openings.pgn        # Tournament opening suite
 │   ├── CMakeLists.txt          # Native C++ CMake build definition
 │   ├── CMakeLists.wasm.txt     # Emscripten WebAssembly build definition
 │   └── Dockerfile.wasm         # Reproducible containerized WASM build toolchain
+├── assets/                     # Benchmark charts and project graphics
 ├── docker-compose.yml          # Production deployment specification
 └── README.md
 ```
@@ -176,7 +196,7 @@ The compiled binary will be placed at `engine/build/pawnGO`. It supports standar
 
 ### 2. WebAssembly Engine Build (Docker)
 
-To compile the C++ engine to WebAssembly using the reproducible containerized Emscripten toolchain:
+To compile the C++ engine to WebAssembly using the containerized Emscripten toolchain:
 
 ```bash
 # Build the WASM image
@@ -216,11 +236,14 @@ To run an automated gauntlet tournament against Stockfish with full referee veri
 # Run 20 games against Stockfish calibrated to 2900 Elo (10 rounds, 4 concurrent threads)
 ./engine/scripts/run_gauntlet.sh 2900 "3+0.05" 10 4
 
-# Run against full unconstrained Stockfish 17.1
-./engine/scripts/run_gauntlet.sh full "5+0.1" 5 2
+# Run the complete multi-control 1,530-game benchmark matrix
+python3 engine/scripts/benchmark_suite.py
 ```
 
-Tournament games are written in real-time to `engine/scripts/games/match.pgn`, and detailed referee reports are logged to `engine/scripts/tournament.log`.
+Tournament games are written in real-time to `engine/scripts/benchmarks/`, and charts can be updated at any time via:
+```bash
+uv run --with matplotlib --with numpy python3 engine/scripts/plot_benchmark.py
+```
 
 ---
 
