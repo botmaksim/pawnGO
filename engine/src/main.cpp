@@ -50,10 +50,17 @@ void uciLoop() {
 
     log("UCI Loop started.");
 
-    std::ifstream syzygy_test("/home/maksim/CV/pawnGO/engine/3-4-5/KBBBvK.rtbw");
-    if (syzygy_test.good()) {
-        tb_init("/home/maksim/CV/pawnGO/engine/3-4-5");
-        log("Auto-initialized Syzygy 3-4-5 tablebases.");
+    const char* tb_paths[] = {
+        "engine/3-4-5",
+        "3-4-5",
+        "../3-4-5",
+        "/home/maksim/CV/pawnGO/engine/3-4-5"
+    };
+    for (int i = 0; i < 4; i++) {
+        if (tb_init(tb_paths[i]) && TB_LARGEST > 0) {
+            log("Syzygy Tablebases automatically initialized from " + std::string(tb_paths[i]) + " (Max pieces: " + std::to_string(TB_LARGEST) + ")");
+            break;
+        }
     }
 
     while (std::getline(std::cin, line)) {
@@ -651,8 +658,17 @@ int main() {
     if (!loaded) {
         std::cout << "Engine OUT: Failed to load NNUE from any standard path." << std::endl;
     }
-    if (tb_init("../3-4-5")) {
-        log("Syzygy Tablebases automatically initialized from ../3-4-5 (Max pieces: " + std::to_string(TB_LARGEST) + ")");
+    const char* tb_paths[] = {
+        "engine/3-4-5",
+        "3-4-5",
+        "../3-4-5",
+        "/home/maksim/CV/pawnGO/engine/3-4-5"
+    };
+    for (int i = 0; i < 4; i++) {
+        if (tb_init(tb_paths[i]) && TB_LARGEST > 0) {
+            log("Syzygy Tablebases automatically initialized from " + std::string(tb_paths[i]) + " (Max pieces: " + std::to_string(TB_LARGEST) + ")");
+            break;
+        }
     }
 
 #ifdef __EMSCRIPTEN__

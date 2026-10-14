@@ -235,18 +235,70 @@ namespace Evaluation {
         int b_minors = b_bishops + b_knights;
         int w_majors = w_queens + w_rooks;
         int b_majors = b_queens + b_rooks;
+        int total_pieces = w_majors + b_majors + w_minors + b_minors;
 
+        int w_king_sq = Bitboard::lsb(pos.pieceBB[K]);
+        int b_king_sq = Bitboard::lsb(pos.pieceBB[k]);
+
+        // Pawnless theoretical draws
         if (w_pawns == 0 && b_pawns == 0) {
             if (w_majors == 0 && b_majors == 0) {
+                // KBvK, KNvK, KBvKB, KNvKN, KBvKN
                 if (w_minors <= 1 && b_minors <= 1) return 0;
+                // KNNvK
                 if ((w_minors == 2 && w_knights == 2 && b_minors == 0) ||
                     (b_minors == 2 && b_knights == 2 && w_minors == 0)) {
                     return 0;
                 }
+                // Two bishops of the same color cannot force checkmate
+                if (w_minors == 2 && w_bishops == 2 && b_minors == 0) {
+                    U64 bb = pos.pieceBB[B];
+                    int b1 = Bitboard::lsb(bb);
+                    Bitboard::pop_bit(bb, b1);
+                    int b2 = Bitboard::lsb(bb);
+                    if ((b1 / 8 + b1 % 8) % 2 == (b2 / 8 + b2 % 8) % 2) return 0;
+                }
+                if (b_minors == 2 && b_bishops == 2 && w_minors == 0) {
+                    U64 bb = pos.pieceBB[b];
+                    int b1 = Bitboard::lsb(bb);
+                    Bitboard::pop_bit(bb, b1);
+                    int b2 = Bitboard::lsb(bb);
+                    if ((b1 / 8 + b1 % 8) % 2 == (b2 / 8 + b2 % 8) % 2) return 0;
+                }
             }
+            // KR vs KR (dead draw)
             if (w_majors == 1 && b_majors == 1 && w_rooks == 1 && b_rooks == 1 && w_minors == 0 && b_minors == 0) {
+                return 0;
+            }
+            // KQ vs KQ (dead draw)
+            if (w_majors == 1 && b_majors == 1 && w_queens == 1 && b_queens == 1 && w_minors == 0 && b_minors == 0) {
+                return 0;
+            }
+            // KR vs KB or KR vs KN (heavy drawish tendency)
+            if ((w_rooks == 1 && w_majors == 1 && w_minors == 0 && b_majors == 0 && b_minors == 1) ||
+                (b_rooks == 1 && b_majors == 1 && b_minors == 0 && w_majors == 0 && w_minors == 1)) {
                 score /= 4;
             }
+        }
+
+        // Wrong-colored bishop + rook pawn (a/h pawn) vs lone King fortress
+        if (w_queens == 0 && b_queens == 0 && w_rooks == 0 && b_rooks == 0 && w_knights == 0 && b_knights == 0 &&
+            b_majors == 0 && b_minors == 0 && b_pawns == 0 && w_bishops == 1 && w_pawns == 1 && b_king_sq != -1) {
+            int b_sq = Bitboard::lsb(pos.pieceBB[B]);
+            bool b_is_light = ((b_sq / 8 + b_sq % 8) % 2 == 0);
+            U64 a_pawn = pos.pieceBB[P] & 0x0101010101010101ULL;
+            U64 h_pawn = pos.pieceBB[P] & 0x8080808080808080ULL;
+            if (a_pawn && b_is_light && chebyshev_distance(b_king_sq, 56) <= 2) score = 0;
+            if (h_pawn && !b_is_light && chebyshev_distance(b_king_sq, 63) <= 2) score = 0;
+        }
+        if (w_queens == 0 && b_queens == 0 && w_rooks == 0 && b_rooks == 0 && w_knights == 0 && b_knights == 0 &&
+            w_majors == 0 && w_minors == 0 && w_pawns == 0 && b_bishops == 1 && b_pawns == 1 && w_king_sq != -1) {
+            int b_sq = Bitboard::lsb(pos.pieceBB[b]);
+            bool b_is_light = ((b_sq / 8 + b_sq % 8) % 2 == 0);
+            U64 a_pawn = pos.pieceBB[p] & 0x0101010101010101ULL;
+            U64 h_pawn = pos.pieceBB[p] & 0x8080808080808080ULL;
+            if (a_pawn && b_is_light && chebyshev_distance(w_king_sq, 0) <= 2) score = 0;
+            if (h_pawn && !b_is_light && chebyshev_distance(w_king_sq, 7) <= 2) score = 0;
         }
 
         // Pure opposite-colored bishops fortress scaling (no rooks, queens, or knights)
@@ -265,10 +317,80 @@ namespace Evaluation {
             }
         }
 
-        // Positional endgame evaluation (passed pawns and rook placement)
+        // Positional endgame evaluation (king activity, passed pawns, and rook placement)
         int positional_bonus = 0;
-        int w_king_sq = Bitboard::lsb(pos.pieceBB[K]);
-        int b_king_sq = Bitboard::lsb(pos.pieceBB[k]);
+
+        // 1. King Centralization in Endgames
+        if (total_pieces <= 4 && w_king_sq != -1 && b_king_sq != -1) {
+            auto center_distance = [](int sq) {
+                int r = sq / 8, f = sq % 8;
+                int dr = (r <= 3) ? (3 - r) : (r - 4);
+                int df = (f <= 3) ? (3 - f) : (f - 4);
+                return dr + df;
+            };
+            int w_cdist = center_distance(w_king_sq);
+            int b_cdist = center_distance(b_king_sq);
+            int eg_mult = (5 - total_pieces) * 2 + 6;
+            positional_bonus += (b_cdist - w_cdist) * eg_mult;
+        }
+
+        // 2. Rule of the Square in pure King & Pawn endgames (no other pieces)
+        if (total_pieces == 0 && w_king_sq != -1 && b_king_sq != -1) {
+            U64 wp = pos.pieceBB[P];
+            while (wp) {
+                int sq = Bitboard::lsb(wp);
+                if (!(pos.pieceBB[p] & passed_pawn_masks[WHITE][sq])) {
+                    int rank = sq / 8;
+                    int file = sq % 8;
+                    U64 path = (0x0101010101010101ULL << file) & ~((1ULL << (sq + 8)) - 1);
+                    if (!(pos.occupancies[BOTH] & path)) {
+                        int moves_to_queen = (rank == 1) ? 5 : (7 - rank);
+                        int b_dist = chebyshev_distance(b_king_sq, 56 + file);
+                        int allowed_dist = moves_to_queen + (side == WHITE ? 0 : 1);
+                        if (b_dist > allowed_dist) {
+                            positional_bonus += 500;
+                        }
+                    }
+                }
+                Bitboard::pop_bit(wp, sq);
+            }
+            U64 bp = pos.pieceBB[p];
+            while (bp) {
+                int sq = Bitboard::lsb(bp);
+                if (!(pos.pieceBB[P] & passed_pawn_masks[BLACK][sq])) {
+                    int rank = sq / 8;
+                    int file = sq % 8;
+                    U64 path = (0x0101010101010101ULL << file) & ((1ULL << sq) - 1);
+                    if (!(pos.occupancies[BOTH] & path)) {
+                        int moves_to_queen = (rank == 6) ? 5 : rank;
+                        int w_dist = chebyshev_distance(w_king_sq, file);
+                        int allowed_dist = moves_to_queen + (side == BLACK ? 0 : 1);
+                        if (w_dist > allowed_dist) {
+                            positional_bonus -= 500;
+                        }
+                    }
+                }
+                Bitboard::pop_bit(bp, sq);
+            }
+        }
+
+        // 3. Drive defending lone king to edge when winning decisively
+        if (w_king_sq != -1 && b_king_sq != -1) {
+            auto edge_distance = [](int sq) {
+                int r = sq / 8, f = sq % 8;
+                return std::min({r, 7 - r, f, 7 - f});
+            };
+            if (b_pawns == 0 && b_majors == 0 && b_minors == 0 && (w_majors > 0 || w_minors >= 2)) {
+                int king_dist = chebyshev_distance(w_king_sq, b_king_sq);
+                int edge_dist = edge_distance(b_king_sq);
+                positional_bonus += (3 - edge_dist) * 20 + (7 - king_dist) * 10;
+            }
+            if (w_pawns == 0 && w_majors == 0 && w_minors == 0 && (b_majors > 0 || b_minors >= 2)) {
+                int king_dist = chebyshev_distance(w_king_sq, b_king_sq);
+                int edge_dist = edge_distance(w_king_sq);
+                positional_bonus -= (3 - edge_dist) * 20 + (7 - king_dist) * 10;
+            }
+        }
 
         // Passed pawns: advancement, Tarrasch rule, and king escort
         U64 wp = pos.pieceBB[P];
@@ -282,11 +404,14 @@ namespace Evaluation {
                 else if (rank == 5) rank_bonus = 35;
                 else if (rank == 6) rank_bonus = 75;
 
-                // Tarrasch rule: rook behind passed pawn
+                // Tarrasch rule: rook behind passed pawn vs rook in front
                 U64 file_mask = 0x0101010101010101ULL << file;
                 U64 behind_mask = file_mask & ((1ULL << sq) - 1);
+                U64 ahead_mask = file_mask & ~((1ULL << (sq + 1)) - 1);
                 if (pos.pieceBB[R] & behind_mask) rank_bonus += 25;
                 if (pos.pieceBB[r] & behind_mask) rank_bonus -= 20;
+                if (pos.pieceBB[R] & ahead_mask) rank_bonus -= 20;
+                if (pos.pieceBB[r] & ahead_mask) rank_bonus -= 15;
 
                 // King escort in endgame
                 if (w_majors + b_majors <= 2 && w_king_sq != -1 && b_king_sq != -1) {
@@ -310,11 +435,14 @@ namespace Evaluation {
                 else if (rank == 5) rank_bonus = 35;
                 else if (rank == 6) rank_bonus = 75;
 
-                // Tarrasch rule: rook behind passed pawn
+                // Tarrasch rule: rook behind passed pawn vs rook in front
                 U64 file_mask = 0x0101010101010101ULL << file;
                 U64 behind_mask = file_mask & ~((1ULL << (sq + 1)) - 1);
+                U64 ahead_mask = file_mask & ((1ULL << sq) - 1);
                 if (pos.pieceBB[r] & behind_mask) rank_bonus += 25;
                 if (pos.pieceBB[R] & behind_mask) rank_bonus -= 20;
+                if (pos.pieceBB[r] & ahead_mask) rank_bonus -= 20;
+                if (pos.pieceBB[R] & ahead_mask) rank_bonus -= 15;
 
                 // King escort in endgame
                 if (w_majors + b_majors <= 2 && w_king_sq != -1 && b_king_sq != -1) {
