@@ -111,28 +111,33 @@ export function classifyMove(nodeA, nodeB, sanMove) {
     const oppMatB = turnA === 'w' ? matB.black : matB.white;
     const sacrificedMaterial = (playerMatA - playerMatB) > (oppMatA - oppMatB) + 1;
 
-    // Brilliant (!!): piece sacrifice with sound continuation
-    if (sacrificedMaterial && playerScoreB >= -0.2 && winProbDelta >= -0.04) {
+    // Brilliant (!!): piece sacrifice on the engine's primary line with winning continuation
+    if (sacrificedMaterial && isStrictTopMove && playerScoreB >= -0.2) {
         return '!!';
     }
 
-    // Best Move (★): engine primary line or minimal win-probability loss
-    if (isStrictTopMove || winProbDelta >= -0.02 || pawnsDelta >= -0.10) {
+    // Best Move (★): strictly the engine's #1 move, or practically tied (within 5 cp) without material loss
+    if (isStrictTopMove || (!sacrificedMaterial && pawnsDelta >= -0.05 && winProbDelta >= -0.005)) {
         return '★';
     }
 
-    // Good Move (✓)
-    if (winProbDelta >= -0.06 || pawnsDelta >= -0.35) {
+    // Unsound material sacrifice on non-top move: never Best or Good
+    if (sacrificedMaterial) {
+        return playerScoreB >= 2.0 ? '?' : '??';
+    }
+
+    // Good Move (✓): solid, natural move maintaining advantage
+    if (winProbDelta >= -0.05 || pawnsDelta >= -0.30) {
         return '✓';
     }
 
-    // Inaccuracy (?!)
-    if (winProbDelta >= -0.12) {
+    // Inaccuracy (?!): slight sub-optimal choice
+    if (winProbDelta >= -0.12 || pawnsDelta >= -0.80) {
         return '?!';
     }
 
-    // Mistake (?)
-    if (winProbDelta >= -0.22) {
+    // Mistake (?): noticeable loss of advantage
+    if (winProbDelta >= -0.22 || pawnsDelta >= -1.80) {
         return '?';
     }
 
@@ -144,7 +149,7 @@ export function classifyMove(nodeA, nodeB, sanMove) {
         return '?';
     }
 
-    // Blunder (??): game-altering loss of winning advantage or turning draw into loss
+    // Blunder (??): severe loss of winning advantage or turning draw into loss
     return '??';
 }
 

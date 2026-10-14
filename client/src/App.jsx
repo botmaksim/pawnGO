@@ -287,7 +287,12 @@ function App() {
                     })
                     .then(data => {
                         if (data && data.bestmove && data.bestmove !== 'none') {
-                            return { bestmove: data.bestmove };
+                            let scoreCp = 19999;
+                            if (data.tbInfo && data.tbInfo.includes('score cp')) {
+                                const m = data.tbInfo.match(/score cp (-?\d+)/);
+                                if (m) scoreCp = parseInt(m[1]);
+                            }
+                            return { bestmove: data.bestmove, scoreCp };
                         }
                         throw new Error('Local tablebase miss');
                     })
@@ -297,7 +302,12 @@ function App() {
                             .then(res => res.json())
                             .then(data => {
                                 if (data && data.moves && data.moves.length > 0) {
-                                    return { bestmove: data.moves[0].uci };
+                                    let scoreCp = 0;
+                                    if (data.category === 'win') scoreCp = 19999;
+                                    else if (data.category === 'loss') scoreCp = -19999;
+                                    else if (data.category === 'draw') scoreCp = 0;
+                                    else if (data.checkmate) scoreCp = -10000;
+                                    return { bestmove: data.moves[0].uci, scoreCp };
                                 }
                                 return null;
                             });
@@ -305,7 +315,7 @@ function App() {
                     .then(result => {
                         if (result && result.bestmove) {
                             if (wsRef.current && wsRef.current.onmessage) {
-                                wsRef.current.onmessage({ data: `info depth 64 score cp 19999 pv ${result.bestmove}` });
+                                wsRef.current.onmessage({ data: `info depth 64 score cp ${result.scoreCp} pv ${result.bestmove}` });
                                 wsRef.current.onmessage({ data: `bestmove ${result.bestmove}` });
                             }
                             wsRef.current.isTablebasePending = null;
