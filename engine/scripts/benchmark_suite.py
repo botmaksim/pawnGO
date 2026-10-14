@@ -323,7 +323,7 @@ def update_readme(results):
                 "",
                 f"> Independent evaluation by official Stockfish 17.1 referee over **{v.get('games_analyzed', 0):,} tournament games** and **{v.get('total_moves', 0):,} pawnGO moves**:",
                 "",
-                "| Metric | pawGO Engine Performance |",
+                "| Metric | pawnGO Engine Performance |",
                 "| :--- | :--- |",
                 f"| **Overall Accuracy** | **{v.get('overall_accuracy', 0)}%** |",
                 f"| **Average Centipawn Loss (ACPL)** | **{v.get('overall_acpl', 0)} cp** |",

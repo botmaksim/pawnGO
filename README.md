@@ -159,6 +159,23 @@ pawnGO demonstrates exceptional opening versatility across 2,210 tournament game
 - **Two Knights Defense**: **44.2% win rate** (+30 -39 =8, 77 Games)
 
 ---
+### Stockfish 17.1 Parallel Referee Evaluation
+
+> Independent evaluation by official Stockfish 17.1 referee over **1,574 tournament games** and **92,659 pawnGO moves**:
+
+| Metric | pawnGO Engine Performance |
+| :--- | :--- |
+| **Overall Accuracy** | **90.1%** |
+| **Average Centipawn Loss (ACPL)** | **24.7 cp** |
+| **White Accuracy / ACPL** | **90.4%** (24.1 cp) |
+| **Black Accuracy / ACPL** | **89.8%** (25.4 cp) |
+| **★ Best Moves** | **57,746** (62.3%) |
+| **✓ Good Moves** | **18,361** (19.8%) |
+| **?! Inaccuracies** | 11,323 (12.2%) |
+| **? Mistakes** | 3,900 (4.2%) |
+| **?? Blunders** | **1,329 (1.4%)** |
+
+---
 
 ## Web Application
 
