@@ -1,38 +1,45 @@
 # pawnGO: Standalone High-Performance C++ UCI Chess Engine
 
-`pawnGO` is a modern, high-performance chess engine written in C++17. It implements bitboard board representations, SIMD-accelerated NNUE evaluation, Principal Variation Search (PVS) with extensive pruning heuristics, Lazy SMP multi-threading, and Syzygy endgame tablebase probing.
+`pawnGO` is a modern, high-performance chess engine written in C++17. The engine implements bitboard state representations, SIMD-accelerated NNUE positional evaluation, Principal Variation Search with extensive pruning heuristics, Lazy SMP multi-threading, and Syzygy endgame tablebase probing.
+
+[![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
+[![UCI Protocol](https://img.shields.io/badge/Protocol-UCI-green.svg)](https://en.wikipedia.org/wiki/Universal_Chess_Interface)
+[![Evaluation: NNUE](https://img.shields.io/badge/Eval-HalfKP--768%20NNUE-purple.svg)](#evaluation--endgames)
+[![Syzygy Tablebases](https://img.shields.io/badge/Endgame-3--4--5--man%20Syzygy-orange.svg)](#evaluation--endgames)
+[![CMake: 3.20+](https://img.shields.io/badge/CMake-3.20%2B-informational.svg)](https://cmake.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
 
 ## Technical Specifications & Architecture
 
 ### Board Representation & Bitboards
-- **Bitboard Engine**: 64-bit integer bitmasks (`uint64_t`) for board state and piece locations.
-- **Magic Bitboards**: Precomputed hashing for sliding pieces (bishops, rooks, queens) with AVX2 and BMI2 popcount optimizations.
-- **Zobrist Hashing**: 64-bit incremental state hashing for transposition table indexing and repetition detection.
+- **Bitboard Engine**: 64-bit integer bitmasks (`uint64_t`) representing board occupancy and piece locations.
+- **Magic Bitboards**: Precomputed hashing for sliding pieces including bishops, rooks, and queens, optimized with AVX2 and BMI2 instructions.
+- **Zobrist Hashing**: Incremental 64-bit position keys for transposition table indexing, fifty-move rule verification, and threefold repetition detection.
 
 ### Search Algorithm
-- **Search Strategy**: Alpha-Beta Principal Variation Search (PVS) with Iterative Deepening.
+- **Search Strategy**: Alpha-Beta Principal Variation Search with Iterative Deepening.
 - **Selectivity & Pruning**:
-  - Quiescence search with delta pruning for tactical stability.
-  - Null Move Pruning (adaptive R depending on depth and static eval).
-  - Reverse Futility Pruning (static null move pruning).
-  - Late Move Reductions (LMR) based on depth, move order, and capture status.
-  - Futility Pruning at frontier nodes.
-  - Razoring and Internal Iterative Reductions (IIR).
+  - Quiescence search with delta pruning to ensure tactical stability.
+  - Null Move Pruning with adaptive reduction parameter $R$ dynamically scaled by search depth and static evaluation.
+  - Reverse Futility Pruning for static null move pruning at frontier nodes.
+  - Late Move Reductions based on depth, move order, and tactical capture status.
+  - Futility Pruning near leaf nodes.
+  - Razoring and Internal Iterative Reductions.
 - **Move Ordering**:
-  - Hash move from Transposition Table.
-  - Most Valuable Victim - Least Valuable Attacker (MVV-LVA) for tactical captures.
-  - Killer move heuristics (2 slots per ply).
+  - Principal Variation and Hash move from Transposition Table.
+  - Most Valuable Victim / Least Valuable Attacker ordering for tactical captures.
+  - Killer move heuristics with two dedicated slots per ply.
   - History heuristic and Countermove tables.
-- **Concurrency**: Lazy SMP multi-threaded search scaling across multi-core architectures.
+- **Concurrency**: Lazy SMP multi-threaded search scaling across multi-core systems.
 
 ### Evaluation & Endgames
-- **NNUE (Efficiently Updatable Neural Network)**:
-  - Architecture: HalfKP_768 dual-accumulator feature transformer.
-  - Acceleration: Hand-optimized AVX2 and BMI2 SIMD vector intrinsics.
-- **Syzygy Tablebases**:
-  - Native 3-4-5-man WDL (Win-Draw-Loss) and DTZ (Distance-to-Zero) probing via Fathom integration.
+- **NNUE Positional Evaluation**:
+  - Architecture: HalfKP-768 dual-accumulator feature transformer.
+  - SIMD Optimization: AVX2 and BMI2 vector intrinsics.
+- **Syzygy Endgame Tablebases**:
+  - Native 3-4-5-man Win-Draw-Loss and Distance-to-Zero probing via embedded Fathom integration.
   - Dynamic root and leaf tablebase probing during alpha-beta traversal.
 
 ---
@@ -40,9 +47,9 @@
 ## Building from Source
 
 ### Prerequisites
-- Modern C++17 compiler (`g++` >= 9.0 or `clang++` >= 10.0)
-- `cmake` >= 3.20
-- CPU supporting AVX2, BMI2, and POPCNT (x86-64-v3)
+- Modern C++17 compiler supporting GCC 9.0+ or Clang 10.0+
+- CMake 3.20 or later
+- x86-64 CPU supporting AVX2, BMI2, and POPCNT instructions
 
 ### Compilation
 ```bash
@@ -55,13 +62,13 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j$(nproc)
 ```
 
-The resulting binary will be generated at `build/engine/pawnGO`.
+The compiled binary will be placed at `build/engine/pawnGO`.
 
 ---
 
 ## UCI Protocol Interface
 
-`pawnGO` communicates using the standard Universal Chess Interface (UCI) protocol:
+`pawnGO` communicates over standard Universal Chess Interface protocol streams:
 
 ```bash
 $ ./build/engine/pawnGO
@@ -84,12 +91,12 @@ quit
 
 ---
 
-## Benchmarking & Testing
+## Benchmarking & Verification Harness
 
-The `engine/scripts/` directory includes automated benchmarking and tournament harnesses:
-- **`benchmark_suite.py`**: Multi-run tournament gauntlet against Stockfish Elo-calibrated engines via Cutechess-cli.
-- **`parallel_referee.py`**: Parallel Stockfish 17.1 referee verifying Average Centipawn Loss (ACPL), move accuracy, and blunder rates.
-- **`plot_benchmark.py` & `plot_advanced_analytics.py`**: High-resolution SVG and PNG telemetry generators for tournament results.
+The `engine/scripts/` directory provides automated benchmarking and tournament harnesses:
+- **`benchmark_suite.py`**: Multi-run tournament gauntlet against Stockfish calibrated engines via Cutechess-cli.
+- **`parallel_referee.py`**: Parallel Stockfish referee measuring Average Centipawn Loss, move accuracy, and blunder frequencies.
+- **`plot_benchmark.py` & `plot_advanced_analytics.py`**: SVG and PNG telemetry generators for tournament evaluation curves.
 
 ---
 
