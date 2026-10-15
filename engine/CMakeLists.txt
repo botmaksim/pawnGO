@@ -9,13 +9,13 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -flto")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -march=native -flto")
 
 include_directories(
-    ${CMAKE_SOURCE_DIR}/src 
-    ${CMAKE_SOURCE_DIR}/src/core 
-    ${CMAKE_SOURCE_DIR}/src/search 
-    ${CMAKE_SOURCE_DIR}/src/eval 
-    ${CMAKE_SOURCE_DIR}/src/utils 
-    ${CMAKE_SOURCE_DIR}/src/eval/nnue/src 
-    ${CMAKE_SOURCE_DIR}/src/eval/syzygy
+    ${CMAKE_CURRENT_SOURCE_DIR}/src 
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core 
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/search 
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/eval 
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/utils 
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/eval/nnue/src 
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/eval/syzygy
 )
 
 # Optimization flags for release build
@@ -36,7 +36,7 @@ file(GLOB_RECURSE SRC_FILES
 list(APPEND SRC_FILES "src/eval/syzygy/tbprobe.c")
 
 # Do not include example files from nnue-probe if any
-list(REMOVE_ITEM SRC_FILES "${CMAKE_SOURCE_DIR}/src/eval/nnue/example.cpp")
+list(REMOVE_ITEM SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/eval/nnue/example.cpp")
 
 add_executable(pawnGO 
     ${SRC_FILES}
@@ -44,6 +44,6 @@ add_executable(pawnGO
 
 add_custom_command(TARGET pawnGO POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy
-    ${CMAKE_SOURCE_DIR}/src/eval/nnue/nn-62ef826d1a6d.nnue
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/eval/nnue/nn-62ef826d1a6d.nnue
     ${CMAKE_BINARY_DIR}/nn-62ef826d1a6d.nnue
 )
