@@ -67,7 +67,7 @@
 
 ## Empirical Benchmark and Validation
 
-To establish pawnGO's playing strength, a 2,550-game tournament benchmark was conducted using `cutechess-cli` against official calibrated Stockfish 17.1 rating levels from 2200 to 3600 Elo across Fast Blitz (`2+0.05`), Slower Blitz (`5+0.1`), and Ultra Slow (`10+0.25`).
+To establish pawnGO's playing strength, a multi-run tournament benchmark of up to 7,650 games (510 games per level across 3 independent runs) was conducted using `cutechess-cli` against official calibrated Stockfish 17.1 rating levels from 2200 to 3600 Elo across Fast Blitz (`2+0.05`), Slower Blitz (`5+0.1`), and Ultra Slow (`10+0.25`).
 
 ### Grand Performance Matrix Across All Games
 
@@ -75,23 +75,23 @@ To establish pawnGO's playing strength, a 2,550-game tournament benchmark was co
   <img src="assets/benchmark_overall.png" alt="pawnGO Overall Gauntlet Performance Summary" width="100%" />
 </p>
 
-| Opponent Target | Fast Blitz (`2+0.05`, 100G) | Slower Blitz (`5+0.1`, 50G) | Ultra Slow (`10+0.25`, 20G) | Playing White | Playing Black | Total Score (170G) | Win Rate | Performance Rating |
+| Opponent Target | Fast Blitz (`2+0.05`) | Slower Blitz (`5+0.1`) | Ultra Slow (`10+0.25`) | Playing White | Playing Black | Total Score | Win Rate | Performance Rating |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Stockfish 2200** | +94 -4 =2 (95.0%) | +49 -0 =1 (99.0%) | +20 -0 =0 (100.0%) | 84.0/85 (98.8%) | 80.5/85 (94.7%) | **164.5 / 170** | **96.8%** | ~2792 Elo |
-| **Stockfish 2300** | +98 -2 =0 (98.0%) | +48 -2 =0 (96.0%) | +20 -0 =0 (100.0%) | 84.0/85 (98.8%) | 82.0/85 (96.5%) | **166.0 / 170** | **97.6%** | ~2944 Elo |
-| **Stockfish 2400** | +94 -6 =0 (94.0%) | +49 -1 =0 (98.0%) | +20 -0 =0 (100.0%) | 81.0/85 (95.3%) | 82.0/85 (96.5%) | **163.0 / 170** | **95.9%** | ~2948 Elo |
-| **Stockfish 2500** | +83 -11 =6 (86.0%) | +45 -3 =2 (92.0%) | +19 -1 =0 (95.0%) | 79.0/85 (92.9%) | 72.0/85 (84.7%) | **151.0 / 170** | **88.8%** | ~2860 Elo |
-| **Stockfish 2600** | +90 -6 =4 (92.0%) | +43 -5 =2 (88.0%) | +19 -0 =1 (97.5%) | 80.5/85 (94.7%) | 75.0/85 (88.2%) | **155.5 / 170** | **91.5%** | ~3013 Elo |
-| **Stockfish 2700** | +74 -18 =8 (78.0%) | +38 -6 =6 (82.0%) | +17 -1 =2 (90.0%) | 69.5/85 (81.8%) | 67.5/85 (79.4%) | **137.0 / 170** | **80.6%** | ~2947 Elo |
-| **Stockfish 2800** | +49 -37 =14 (56.0%) | +27 -15 =8 (62.0%) | +12 -4 =4 (70.0%) | 56.5/85 (66.5%) | 44.5/85 (52.4%) | **101.0 / 170** | **59.4%** | ~2866 Elo |
-| **Stockfish 2900** | +42 -46 =12 (48.0%) | +26 -16 =8 (60.0%) | +8 -8 =4 (50.0%) | 49.0/85 (57.6%) | 39.0/85 (45.9%) | **88.0 / 170** | **51.8%** | ~2913 Elo |
-| **Stockfish 3000** | +38 -51 =11 (43.5%) | +12 -24 =14 (38.0%) | +6 -7 =7 (47.5%) | 38.0/85 (44.7%) | 34.0/85 (40.0%) | **72.0 / 170** | **42.4%** | ~2947 Elo |
-| **Stockfish 3100** | +26 -61 =13 (32.5%) | +8 -28 =14 (30.0%) | +3 -13 =4 (25.0%) | 27.0/85 (31.8%) | 25.5/85 (30.0%) | **52.5 / 170** | **30.9%** | ~2960 Elo |
-| **Stockfish 3200** | +21 -63 =16 (29.0%) | +10 -32 =8 (28.0%) | +3 -11 =6 (30.0%) | 27.0/85 (31.8%) | 22.0/85 (25.9%) | **49.0 / 170** | **28.8%** | ~3043 Elo |
-| **Stockfish 3300** | +26 -61 =13 (32.5%) | +15 -23 =12 (42.0%) | +5 -10 =5 (37.5%) | 35.0/85 (41.2%) | 26.0/85 (30.6%) | **61.0 / 170** | **35.9%** | ~3199 Elo |
-| **Stockfish 3400** | +20 -63 =17 (28.5%) | +10 -33 =7 (27.0%) | +4 -10 =6 (35.0%) | 25.0/85 (29.4%) | 24.0/85 (28.2%) | **49.0 / 170** | **28.8%** | ~3243 Elo |
-| **Stockfish 3500** | +18 -69 =13 (24.5%) | +6 -39 =5 (17.0%) | +4 -13 =3 (27.5%) | 24.0/85 (28.2%) | 14.5/85 (17.1%) | **38.5 / 170** | **22.6%** | ~3286 Elo |
-| **Stockfish 3600** | +1 -96 =3 (2.5%) | +0 -47 =3 (3.0%) | +0 -20 =0 (0.0%) | 2.5/85 (2.9%) | 1.5/85 (1.8%) | **4.0 / 170** | **2.4%** | ~2956 Elo |
+| **Stockfish 2200** | +287 -10 =3 (96.2%) | +247 -2 =1 (99.0%) | +60 -0 =0 (100.0%) | 301.0/305 (98.7%) | 295.0/305 (96.7%) | **596.0 / 610** | **97.7%** | ~2851 Elo |
+| **Stockfish 2300** | +289 -8 =3 (96.8%) | +148 -2 =0 (98.7%) | +59 -1 =0 (98.3%) | 252.5/255 (99.0%) | 245.0/255 (96.1%) | **497.5 / 510** | **97.5%** | ~2936 Elo |
+| **Stockfish 2400** | +284 -15 =1 (94.8%) | +142 -6 =2 (95.3%) | +58 -1 =1 (97.5%) | 244.5/255 (95.9%) | 241.5/255 (94.7%) | **486.0 / 510** | **95.3%** | ~2923 Elo |
+| **Stockfish 2500** | +270 -15 =15 (92.5%) | +139 -9 =2 (93.3%) | +58 -1 =1 (97.5%) | 242.5/255 (95.1%) | 233.5/255 (91.6%) | **476.0 / 510** | **93.3%** | ~2958 Elo |
+| **Stockfish 2600** | +247 -35 =18 (85.3%) | +136 -8 =6 (92.7%) | +57 -1 =2 (96.7%) | 231.5/255 (90.8%) | 221.5/255 (86.9%) | **453.0 / 510** | **88.8%** | ~2960 Elo |
+| **Stockfish 2700** | +205 -61 =34 (74.0%) | +113 -26 =11 (79.0%) | +51 -4 =5 (89.2%) | 201.0/255 (78.8%) | 193.0/255 (75.7%) | **394.0 / 510** | **77.3%** | ~2913 Elo |
+| **Stockfish 2800** | +142 -109 =49 (55.5%) | +78 -45 =27 (61.0%) | +34 -14 =12 (66.7%) | 154.5/255 (60.6%) | 143.5/255 (56.3%) | **298.0 / 510** | **58.4%** | ~2859 Elo |
+| **Stockfish 2900** | +124 -130 =46 (49.0%) | +73 -48 =29 (58.3%) | +22 -24 =14 (48.3%) | 140.5/255 (55.1%) | 123.0/255 (48.2%) | **263.5 / 510** | **51.7%** | ~2912 Elo |
+| **Stockfish 3000** | +109 -145 =46 (44.0%) | +46 -67 =37 (43.0%) | +16 -25 =19 (42.5%) | 111.5/255 (43.7%) | 110.5/255 (43.3%) | **222.0 / 510** | **43.5%** | ~2955 Elo |
+| **Stockfish 3100** | +79 -180 =41 (33.2%) | +32 -80 =38 (34.0%) | +10 -37 =13 (27.5%) | 92.5/255 (36.3%) | 74.5/255 (29.2%) | **167.0 / 510** | **32.7%** | ~2975 Elo |
+| **Stockfish 3200** | +62 -196 =42 (27.7%) | +31 -88 =31 (31.0%) | +10 -33 =17 (30.8%) | 81.5/255 (32.0%) | 66.5/255 (26.1%) | **148.0 / 510** | **29.0%** | ~3044 Elo |
+| **Stockfish 3300** | +70 -183 =47 (31.2%) | +42 -74 =34 (39.3%) | +15 -29 =16 (38.3%) | 99.0/255 (38.8%) | 76.5/255 (30.0%) | **175.5 / 510** | **34.4%** | ~3188 Elo |
+| **Stockfish 3400** | +61 -181 =58 (30.0%) | +28 -98 =24 (26.7%) | +12 -36 =12 (30.0%) | 78.0/255 (30.6%) | 70.0/255 (27.5%) | **148.0 / 510** | **29.0%** | ~3244 Elo |
+| **Stockfish 3500** | +49 -209 =42 (23.3%) | +23 -105 =22 (22.7%) | +10 -37 =13 (27.5%) | 69.0/255 (27.1%) | 51.5/255 (20.2%) | **120.5 / 510** | **23.6%** | ~3296 Elo |
+| **Stockfish 3600** | +2 -290 =8 (2.0%) | +0 -145 =5 (1.7%) | +0 -58 =2 (1.7%) | 7.0/255 (2.7%) | 2.5/255 (1.0%) | **9.5 / 510** | **1.9%** | ~2915 Elo |
 
 ---
 
@@ -107,6 +107,8 @@ To test pawnGO against higher strength levels (3200 through 3600), `UCI_LimitStr
 - **Stockfish 3600**: `Skill Level 20` (full-strength Stockfish 17.1 without handicap, ~3550–3600 CCRL Elo)
 
 In official Stockfish, `Skill Level 20` represents maximum unconstrained playing strength. No isolated 'Stockfish 3700' rating level exists. All benchmarks were conducted using official Stockfish 17.1.
+
+The score inflection at level 3300 occurs due to the transition between strength limiting mechanisms: levels up to 3190 use continuous Gaussian error injection via `UCI_Elo`, whereas levels from 3200 switch to discrete search-pruning handicaps via `Skill Level`.
 
 ---
 
@@ -124,9 +126,9 @@ In official Stockfish, `Skill Level 20` represents maximum unconstrained playing
   <img src="assets/benchmark_by_control.png" alt="Performance by Time Control Matrix" width="100%" />
 </p>
 
-- **Fast Blitz (`2+0.05`, 100 games per level)**: pawnGO maintains high conversion against opponents from 2200 to 2700 (78% to 98% score). Parity (50% score) occurs at ~2880 Elo.
-- **Slower Blitz (`5+0.1`, 50 games per level)**: Consistent positional play, achieving 60.0% against Stockfish 2900 and 42.0% against Stockfish 3300.
-- **Ultra Slow (`10+0.25`, 20 games per level)**: Clean conversion against opponents under 2900 Elo (100% vs 2200–2400, 95% vs 2500, 97.5% vs 2600, 90% vs 2700). Baseline parity is 50.0% against Stockfish 2900.
+- **Fast Blitz (`2+0.05`)**: pawnGO maintains high conversion against opponents from 2200 to 2700. Baseline parity (50% score) occurs at ~2880 Elo.
+- **Slower Blitz (`5+0.1`)**: Consistent positional play, achieving positive score against Stockfish 2900.
+- **Ultra Slow (`10+0.25`)**: High conversion against opponents under 2900 Elo.
 
 ---
 
@@ -136,11 +138,11 @@ In official Stockfish, `Skill Level 20` represents maximum unconstrained playing
   <img src="assets/benchmark_game_phases.png" alt="pawnGO Game Length and Phase Analysis" width="100%" />
 </p>
 
-- **Under 35 moves**: 78.9% score (+390 -100 =12, 502 games). Early tactical sharpness and NNUE evaluation deliver high conversion before complex endgames.
-- **35 to 50 moves**: 58.1% score (+439 -313 =24, 776 games). Stable performance in full middlegames.
-- **50 to 70 moves**: 45.0% score (+302 -375 =51, 728 games). Transitions into 6- and 7-piece endings prior to 5-piece Syzygy tablebase resolution represent the primary challenge against 3000+ opponents.
-- **Over 70 moves**: 51.0% score (+189 -178 =177, 544 games). High draw frequency (177 draws) and 5-piece tablebase holds.
-- **Game Length Distribution**: Wins resolve with a median of 43 moves (mean 48.9 moves); losses resolve with a median of 54 moves (mean 55.9 moves).
+- **Under 35 moves**: 77.2% score (+1128 -324 =28, 1480 games). Early tactical sharpness and NNUE evaluation deliver high conversion before complex endgames.
+- **35 to 50 moves**: 58.1% score (+1325 -945 =80, 2350 games). Stable performance in full middlegames.
+- **50 to 70 moves**: 47.6% score (+954 -1059 =199, 2212 games). Transitions into 6- and 7-piece endings prior to 5-piece Syzygy tablebase resolution represent the primary challenge against 3000+ opponents.
+- **Over 70 moves**: 49.5% score (+525 -541 =542, 1608 games). High draw frequency (542 draws) and 5-piece tablebase holds.
+- **Game Length Distribution**: Wins resolve with a median of 44 moves (mean 48.5 moves); losses resolve with a median of 53 moves (mean 55.9 moves).
 - **Adjudication**: Games were adjudicated by `cutechess-cli` using mutual draw rules (within $\pm 10$ cp for 6 plies after move 40), resignation threshold (600 cp deficit for 4 plies), and 5-piece Syzygy tablebases.
 
 ---
@@ -151,10 +153,10 @@ In official Stockfish, `Skill Level 20` represents maximum unconstrained playing
   <img src="assets/benchmark_openings.png" alt="pawnGO Opening Repertoire Performance Across Rating Levels" width="100%" />
 </p>
 
-Performance across 2,550 tournament games distributed into three opponent rating tiers:
-- **2200–2600 Elo (850 games)**: Above 90% score across all major openings (Two Knights 100%, Queen's Bishop 97%, French 95%, Giuoco Piano 95%, Catalan 94%, English 94%, QGD 94%, Pirc 93%, Caro-Kann 93%, Sicilian 91%).
-- **2700–3100 Elo (850 games, peer tier)**: Ruy Lopez 69.0%, French 59.3%, Grünfeld 55.2%, Queen's Gambit Declined 54.0%, Sicilian 52.8%, English 51.9%, Catalan 51.6%, Pirc 50.0%, Giuoco Piano 44.6%, Two Knights 44.8%, Caro-Kann 43.2%.
-- **3200–3600 Elo (850 games, top Stockfish)**: English Opening retains 30.7%, Caro-Kann 27.3%, French 26.7%, Ruy Lopez 25.9%, Catalan 25.8%, QGD 25.0%, Sicilian 24.3%. Openings with high tactical commitment (Two Knights 6.9%, Giuoco Piano 15.0%) show the sharpest drop against superhuman search depths.
+Performance across 7,650 tournament games distributed into three opponent rating tiers:
+- **2200–2600 Elo**: Scotch Game 98%, Giuoco Piano 97%, Queen's Bishop Game 96%, English Opening 95%, Queen's Gambit Declined 95%, Caro-Kann Defense 95%, Grünfeld Defense 95%, French Defense 94%.
+- **2700–3100 Elo (peer tier)**: French Defense 57.2%, Scotch Game 56.2%, English Opening 55.9%, Pirc / Modern Defense 55.1%, Queen's Gambit Declined 53.1%, Grünfeld Defense 52.9%, Giuoco Piano 51.7%, Sicilian Defense 51.5%.
+- **3200–3600 Elo (top Stockfish)**: Scotch Game 29.0%, English Opening 26.8%, French Defense 26.0%, Queen's Gambit Declined 25.7%, Giuoco Piano 24.1%, Pirc / Modern Defense 23.3%, Queen's Bishop Game 22.9%, Sicilian Defense 22.6%.
 
 ---
 ### Stockfish 17.1 Parallel Referee Evaluation

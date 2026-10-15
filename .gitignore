@@ -37,7 +37,10 @@ tournament.log
 games/*.pgn
 engine/scripts/games/
 engine/scripts/benchmarks/*.pgn
+engine/scripts/benchmarks/**/*.pgn
 engine/scripts/benchmarks/*.log
+engine/scripts/benchmarks/**/*.log
+engine/scripts/*.zip
 *.png
 !assets/*.png
 

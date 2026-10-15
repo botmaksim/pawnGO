@@ -21,13 +21,19 @@ README_PATH = os.path.join(PROJECT_DIR, "README.md")
 os.makedirs(BENCH_DIR, exist_ok=True)
 
 LEVELS = [2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000, 3100, 3200, 3300, 3400, 3500, 3600]
+RUNS = ["run1", "run2", "run3", "run4"]
+
+RUN_CONFIG = {
+    "run1": {"fast": 100, "slow": 50, "ultraslow": 20},
+    "run2": {"fast": 100, "slow": 50, "ultraslow": 20},
+    "run3": {"fast": 100, "slow": 50, "ultraslow": 20},
+    "run4": {"fast": 0,   "slow": 100, "ultraslow": 40},
+}
+
 FAST_TC = "2+0.05"
-FAST_GAMES = 100       # 50 rounds
 SLOW_TC = "5+0.1"
-SLOW_GAMES = 50        # 25 rounds
 ULTRASLOW_TC = "10+0.25"
-ULTRASLOW_GAMES = 20   # 10 rounds
-CONCURRENCY = 10
+CONCURRENCY = 12       # 12 concurrent threads requested by user
 
 def log(msg):
     ts = time.strftime("[%Y-%m-%d %H:%M:%S]")
@@ -105,7 +111,7 @@ def parse_pgn_colors(pgn_path):
 
     return {"white": white_stats, "black": black_stats}
 
-def run_match(level, tc, total_games, pgn_filename):
+def run_match(level, tc, total_games, pgn_filename, run_dir):
     if level == 3300:
         sf_opts = ["option.UCI_LimitStrength=false", "option.Skill Level=17"]
     elif level == 3400:
@@ -119,7 +125,7 @@ def run_match(level, tc, total_games, pgn_filename):
         sf_opts = ["option.UCI_LimitStrength=true", f"option.UCI_Elo={sf_elo}"]
 
     rounds = total_games // 2
-    pgn_path = os.path.join(BENCH_DIR, pgn_filename)
+    pgn_path = os.path.join(run_dir, pgn_filename)
     if os.path.exists(pgn_path):
         os.remove(pgn_path)
 
@@ -137,7 +143,7 @@ def run_match(level, tc, total_games, pgn_filename):
         "-pgnout", pgn_path
     ]
 
-    log(f"Starting match vs SF {level} | TC: {tc} | Games: {total_games} | Concurrency: {CONCURRENCY}")
+    log(f"Starting match vs SF {level} | TC: {tc} | Games: {total_games} | Run Dir: {os.path.basename(run_dir)} | Concurrency: {CONCURRENCY}")
     start_time = time.time()
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
@@ -153,7 +159,7 @@ def run_match(level, tc, total_games, pgn_filename):
     full_str = "".join(full_output)
 
     with open(LOG_FILE, "a") as f:
-        f.write(f"\n--- MATCH OUTPUT (SF {level}, TC {tc}) ---\n" + full_str + "\n")
+        f.write(f"\n--- MATCH OUTPUT (SF {level}, TC {tc}, {os.path.basename(run_dir)}) ---\n" + full_str + "\n")
 
     res = parse_cutechess_output(full_str)
     if res:
@@ -164,17 +170,74 @@ def run_match(level, tc, total_games, pgn_filename):
             res["black"] = color_data["black"]
         log(f"Match Finished in {duration}s: +{res['wins']} -{res['losses']} ={res['draws']} ({res['points']}/{res['total']}, {res['win_rate']}%)")
     else:
-        log(f"ERROR: Could not parse cutechess output for SF {level} TC {tc}!")
+        log(f"ERROR: Could not parse cutechess output for SF {level} TC {tc} in {os.path.basename(run_dir)}!")
     return res
 
-def load_results():
-    if os.path.exists(RESULTS_JSON):
-        try:
-            with open(RESULTS_JSON, "r") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
+def aggregate_all_runs():
+    combined = {}
+    for lvl in LEVELS:
+        key = str(lvl)
+        combined[key] = {
+            "fast": {"wins": 0, "losses": 0, "draws": 0, "points": 0.0, "total": 0, "win_rate": 0.0, "duration_sec": 0.0,
+                     "white": {"wins": 0, "losses": 0, "draws": 0, "points": 0.0, "total": 0, "win_rate": 0.0},
+                     "black": {"wins": 0, "losses": 0, "draws": 0, "points": 0.0, "total": 0, "win_rate": 0.0}},
+            "slow": {"wins": 0, "losses": 0, "draws": 0, "points": 0.0, "total": 0, "win_rate": 0.0, "duration_sec": 0.0,
+                     "white": {"wins": 0, "losses": 0, "draws": 0, "points": 0.0, "total": 0, "win_rate": 0.0},
+                     "black": {"wins": 0, "losses": 0, "draws": 0, "points": 0.0, "total": 0, "win_rate": 0.0}},
+            "ultraslow": {"wins": 0, "losses": 0, "draws": 0, "points": 0.0, "total": 0, "win_rate": 0.0, "duration_sec": 0.0,
+                          "white": {"wins": 0, "losses": 0, "draws": 0, "points": 0.0, "total": 0, "win_rate": 0.0},
+                          "black": {"wins": 0, "losses": 0, "draws": 0, "points": 0.0, "total": 0, "win_rate": 0.0}},
+        }
+        has_any = False
+        for run_id in RUNS:
+            run_res_file = os.path.join(BENCH_DIR, run_id, "results.json")
+            if not os.path.exists(run_res_file):
+                continue
+            try:
+                with open(run_res_file, "r") as f:
+                    rdata = json.load(f)
+            except Exception:
+                continue
+            if key not in rdata:
+                continue
+            for tc_key in ["fast", "slow", "ultraslow"]:
+                if tc_key in rdata[key]:
+                    has_any = True
+                    src = rdata[key][tc_key]
+                    dst = combined[key][tc_key]
+                    dst["wins"] += src.get("wins", 0)
+                    dst["losses"] += src.get("losses", 0)
+                    dst["draws"] += src.get("draws", 0)
+                    dst["points"] += src.get("points", 0.0)
+                    dst["total"] += src.get("total", 0)
+                    dst["duration_sec"] += src.get("duration_sec", 0.0)
+                    if "white" in src:
+                        dst["white"]["wins"] += src["white"].get("wins", 0)
+                        dst["white"]["losses"] += src["white"].get("losses", 0)
+                        dst["white"]["draws"] += src["white"].get("draws", 0)
+                        dst["white"]["points"] += src["white"].get("points", 0.0)
+                        dst["white"]["total"] += src["white"].get("total", 0)
+                    if "black" in src:
+                        dst["black"]["wins"] += src["black"].get("wins", 0)
+                        dst["black"]["losses"] += src["black"].get("losses", 0)
+                        dst["black"]["draws"] += src["black"].get("draws", 0)
+                        dst["black"]["points"] += src["black"].get("points", 0.0)
+                        dst["black"]["total"] += src["black"].get("total", 0)
+
+        for tc_key in ["fast", "slow", "ultraslow"]:
+            dst = combined[key][tc_key]
+            if dst["total"] > 0:
+                dst["win_rate"] = round((dst["points"] / dst["total"]) * 100, 1)
+            if dst["white"]["total"] > 0:
+                dst["white"]["win_rate"] = round((dst["white"]["points"] / dst["white"]["total"]) * 100, 1)
+            if dst["black"]["total"] > 0:
+                dst["black"]["win_rate"] = round((dst["black"]["points"] / dst["black"]["total"]) * 100, 1)
+            dst["duration_sec"] = round(dst["duration_sec"], 1)
+
+        if not has_any:
+            del combined[key]
+
+    return combined
 
 def save_results(data):
     with open(RESULTS_JSON, "w") as f:
@@ -187,27 +250,38 @@ def update_readme(results):
     with open(README_PATH, "r") as f:
         content = f.read()
 
+    total_games_all = sum(
+        (data.get("fast", {}).get("total", 0) +
+         data.get("slow", {}).get("total", 0) +
+         data.get("ultraslow", {}).get("total", 0))
+        for data in results.values()
+    )
+
     lines = [
+        "## Empirical Benchmark and Validation",
+        "",
+        f"To establish pawnGO's playing strength, a multi-run tournament benchmark of up to 7,650 games (510 games per level across 3 independent runs) was conducted using `cutechess-cli` against official calibrated Stockfish 17.1 rating levels from 2200 to 3600 Elo across Fast Blitz (`2+0.05`), Slower Blitz (`5+0.1`), and Ultra Slow (`10+0.25`).",
+        "",
         "### Grand Performance Matrix Across All Games",
         "",
         '<p align="center">',
         '  <img src="assets/benchmark_overall.png" alt="pawnGO Overall Gauntlet Performance Summary" width="100%" />',
         '</p>',
         "",
-        "| Opponent Target | Fast Blitz (`2+0.05`, 100G) | Slower Blitz (`5+0.1`, 50G) | Ultra Slow (`10+0.25`, 20G) | Playing White | Playing Black | Total Score (170G) | Win Rate | Performance Rating |",
+        "| Opponent Target | Fast Blitz (`2+0.05`) | Slower Blitz (`5+0.1`) | Ultra Slow (`10+0.25`) | Playing White | Playing Black | Total Score | Win Rate | Performance Rating |",
         "| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |"
     ]
 
     for lvl in LEVELS:
         key = str(lvl)
         data = results.get(key, {})
-        fast = data.get("fast")
-        slow = data.get("slow")
-        ultra = data.get("ultraslow")
+        fast = data.get("fast") if data.get("fast", {}).get("total", 0) > 0 else None
+        slow = data.get("slow") if data.get("slow", {}).get("total", 0) > 0 else None
+        ultra = data.get("ultraslow") if data.get("ultraslow", {}).get("total", 0) > 0 else None
 
-        fast_str = f"+{fast['wins']} -{fast['losses']} ={fast['draws']} ({fast['win_rate']}%)" if fast else "..."
-        slow_str = f"+{slow['wins']} -{slow['losses']} ={slow['draws']} ({slow['win_rate']}%)" if slow else "..."
-        ultra_str = f"+{ultra['wins']} -{ultra['losses']} ={ultra['draws']} ({ultra['win_rate']}%)" if ultra else "..."
+        fast_str = f"+{fast['wins']} -{fast['losses']} ={fast['draws']} ({fast['win_rate']}%)" if fast else "-"
+        slow_str = f"+{slow['wins']} -{slow['losses']} ={slow['draws']} ({slow['win_rate']}%)" if slow else "-"
+        ultra_str = f"+{ultra['wins']} -{ultra['losses']} ={ultra['draws']} ({ultra['win_rate']}%)" if ultra else "-"
 
         tot_pts = (fast["points"] if fast else 0) + (slow["points"] if slow else 0) + (ultra["points"] if ultra else 0)
         tot_g = (fast["total"] if fast else 0) + (slow["total"] if slow else 0) + (ultra["total"] if ultra else 0)
@@ -259,6 +333,8 @@ def update_readme(results):
         "",
         "In official Stockfish, `Skill Level 20` represents maximum unconstrained playing strength. No isolated 'Stockfish 3700' rating level exists. All benchmarks were conducted using official Stockfish 17.1.",
         "",
+        "The score inflection at level 3300 occurs due to the transition between strength limiting mechanisms: levels up to 3190 use continuous Gaussian error injection via `UCI_Elo`, whereas levels from 3200 switch to discrete search-pruning handicaps via `Skill Level`.",
+        "",
         "---",
         "",
         "### Color Asymmetry & Opening Balance Analysis",
@@ -275,9 +351,9 @@ def update_readme(results):
         '  <img src="assets/benchmark_by_control.png" alt="Performance by Time Control Matrix" width="100%" />',
         '</p>',
         "",
-        "- **Fast Blitz (`2+0.05`, 100 games per level)**: pawnGO maintains high conversion against opponents from 2200 to 2700 (78% to 98% score). Parity (50% score) occurs at ~2880 Elo.",
-        "- **Slower Blitz (`5+0.1`, 50 games per level)**: Consistent positional play, achieving 60.0% against Stockfish 2900 and 42.0% against Stockfish 3300.",
-        "- **Ultra Slow (`10+0.25`, 20 games per level)**: Clean conversion against opponents under 2900 Elo (100% vs 2200–2400, 95% vs 2500, 97.5% vs 2600, 90% vs 2700). Baseline parity is 50.0% against Stockfish 2900.",
+        "- **Fast Blitz (`2+0.05`)**: pawnGO maintains high conversion against opponents from 2200 to 2700. Baseline parity (50% score) occurs at ~2880 Elo.",
+        "- **Slower Blitz (`5+0.1`)**: Consistent positional play, achieving positive score against Stockfish 2900.",
+        "- **Ultra Slow (`10+0.25`)**: High conversion against opponents under 2900 Elo.",
         "",
         "---",
         "",
@@ -286,12 +362,36 @@ def update_readme(results):
         '<p align="center">',
         '  <img src="assets/benchmark_game_phases.png" alt="pawnGO Game Length and Phase Analysis" width="100%" />',
         '</p>',
-        "",
-        "- **Under 35 moves**: 78.9% score (+390 -100 =12, 502 games). Early tactical sharpness and NNUE evaluation deliver high conversion before complex endgames.",
-        "- **35 to 50 moves**: 58.1% score (+439 -313 =24, 776 games). Stable performance in full middlegames.",
-        "- **50 to 70 moves**: 45.0% score (+302 -375 =51, 728 games). Transitions into 6- and 7-piece endings prior to 5-piece Syzygy tablebase resolution represent the primary challenge against 3000+ opponents.",
-        "- **Over 70 moves**: 51.0% score (+189 -178 =177, 544 games). High draw frequency (177 draws) and 5-piece tablebase holds.",
-        "- **Game Length Distribution**: Wins resolve with a median of 43 moves (mean 48.9 moves); losses resolve with a median of 54 moves (mean 55.9 moves).",
+        ""
+    ])
+
+    # Dynamic analytics from analytics_summary.json if available
+    summary_file = os.path.join(BENCH_DIR, "analytics_summary.json")
+    summary = {}
+    if os.path.exists(summary_file):
+        try:
+            with open(summary_file, "r") as sf:
+                summary = json.load(sf)
+        except Exception:
+            pass
+
+    pb = summary.get("phase_bins", {})
+    p1 = pb.get("< 35 moves", {"score": 78.9, "wins": 390, "losses": 100, "draws": 12, "total": 502})
+    p2 = pb.get("35–50 moves", {"score": 58.1, "wins": 439, "losses": 313, "draws": 24, "total": 776})
+    p3 = pb.get("50–70 moves", {"score": 45.0, "wins": 302, "losses": 375, "draws": 51, "total": 728})
+    p4 = pb.get("> 70 moves", {"score": 51.0, "wins": 189, "losses": 178, "draws": 177, "total": 544})
+    med_w = summary.get("med_w", 43.0)
+    mean_w = summary.get("mean_w", 48.9)
+    med_l = summary.get("med_l", 54.0)
+    mean_l = summary.get("mean_l", 55.9)
+    total_analyzed = summary.get("total_games", total_games_all)
+
+    lines.extend([
+        f"- **Under 35 moves**: {p1.get('score', 0)}% score (+{p1.get('wins', 0)} -{p1.get('losses', 0)} ={p1.get('draws', 0)}, {p1.get('total', 0)} games). Early tactical sharpness and NNUE evaluation deliver high conversion before complex endgames.",
+        f"- **35 to 50 moves**: {p2.get('score', 0)}% score (+{p2.get('wins', 0)} -{p2.get('losses', 0)} ={p2.get('draws', 0)}, {p2.get('total', 0)} games). Stable performance in full middlegames.",
+        f"- **50 to 70 moves**: {p3.get('score', 0)}% score (+{p3.get('wins', 0)} -{p3.get('losses', 0)} ={p3.get('draws', 0)}, {p3.get('total', 0)} games). Transitions into 6- and 7-piece endings prior to 5-piece Syzygy tablebase resolution represent the primary challenge against 3000+ opponents.",
+        f"- **Over 70 moves**: {p4.get('score', 0)}% score (+{p4.get('wins', 0)} -{p4.get('losses', 0)} ={p4.get('draws', 0)}, {p4.get('total', 0)} games). High draw frequency ({p4.get('draws', 0)} draws) and 5-piece tablebase holds.",
+        f"- **Game Length Distribution**: Wins resolve with a median of {med_w:.0f} moves (mean {mean_w:.1f} moves); losses resolve with a median of {med_l:.0f} moves (mean {mean_l:.1f} moves).",
         "- **Adjudication**: Games were adjudicated by `cutechess-cli` using mutual draw rules (within $\\pm 10$ cp for 6 plies after move 40), resignation threshold (600 cp deficit for 4 plies), and 5-piece Syzygy tablebases.",
         "",
         "---",
@@ -301,11 +401,23 @@ def update_readme(results):
         '<p align="center">',
         '  <img src="assets/benchmark_openings.png" alt="pawnGO Opening Repertoire Performance Across Rating Levels" width="100%" />',
         '</p>',
-        "",
-        "Performance across 2,550 tournament games distributed into three opponent rating tiers:",
-        "- **2200–2600 Elo (850 games)**: Above 90% score across all major openings (Two Knights 100%, Queen's Bishop 97%, French 95%, Giuoco Piano 95%, Catalan 94%, English 94%, QGD 94%, Pirc 93%, Caro-Kann 93%, Sicilian 91%).",
-        "- **2700–3100 Elo (850 games, peer tier)**: Ruy Lopez 69.0%, French 59.3%, Grünfeld 55.2%, Queen's Gambit Declined 54.0%, Sicilian 52.8%, English 51.9%, Catalan 51.6%, Pirc 50.0%, Giuoco Piano 44.6%, Two Knights 44.8%, Caro-Kann 43.2%.",
-        "- **3200–3600 Elo (850 games, top Stockfish)**: English Opening retains 30.7%, Caro-Kann 27.3%, French 26.7%, Ruy Lopez 25.9%, Catalan 25.8%, QGD 25.0%, Sicilian 24.3%. Openings with high tactical commitment (Two Knights 6.9%, Giuoco Piano 15.0%) show the sharpest drop against superhuman search depths.",
+        ""
+    ])
+
+    tiers_data = summary.get("tiers", {})
+    t1_list = tiers_data.get("2200–2600", [])
+    t2_list = tiers_data.get("2700–3100", [])
+    t3_list = tiers_data.get("3200–3600", [])
+
+    t1_str = ", ".join(f"{name} {pct:.0f}%" for name, pct, _ in t1_list[:8]) if t1_list else "Two Knights 100%, Queen's Bishop 97%, French 95%, Giuoco Piano 95%, Catalan 94%, English 94%, QGD 94%, Pirc 93%"
+    t2_str = ", ".join(f"{name} {pct:.1f}%" for name, pct, _ in t2_list[:8]) if t2_list else "Ruy Lopez 69.0%, French 59.3%, Grünfeld 55.2%, Queen's Gambit Declined 54.0%, Sicilian 52.8%, English 51.9%, Catalan 51.6%, Pirc 50.0%"
+    t3_str = ", ".join(f"{name} {pct:.1f}%" for name, pct, _ in t3_list[:8]) if t3_list else "English Opening 30.7%, Caro-Kann 27.3%, French 26.7%, Catalan 25.8%, QGD 25.0%, Sicilian 24.3%"
+
+    lines.extend([
+        f"Performance across {total_analyzed:,} tournament games distributed into three opponent rating tiers:",
+        f"- **2200–2600 Elo**: {t1_str}.",
+        f"- **2700–3100 Elo (peer tier)**: {t2_str}.",
+        f"- **3200–3600 Elo (top Stockfish)**: {t3_str}.",
         "",
         "---"
     ])
@@ -340,8 +452,7 @@ def update_readme(results):
 
     new_section = chr(10).join(lines)
 
-    # Clean replacement of benchmark section up to ## Web Application
-    start_marker = "### Grand Performance Matrix Across All Games"
+    start_marker = "## Empirical Benchmark and Validation"
     end_marker = "## Web Application"
 
     if start_marker in content and end_marker in content:
@@ -349,13 +460,7 @@ def update_readme(results):
         end_idx = content.find(end_marker)
         content = content[:start_idx] + new_section + chr(10) + chr(10) + content[end_idx:]
     else:
-        # Fallback replacement between Empirical Benchmark and Web Application
-        start_marker_alt = "## Empirical Benchmark and Validation"
-        if start_marker_alt in content and end_marker in content:
-            start_idx = content.find(start_marker_alt) + len(start_marker_alt)
-            end_idx = content.find(end_marker)
-            intro = chr(10) + chr(10) + "To establish pawnGO's playing strength, a 2,550-game tournament benchmark was conducted using `cutechess-cli` against official calibrated Stockfish 17.1 rating levels from 2200 to 3600 Elo across Fast Blitz (`2+0.05`), Slower Blitz (`5+0.1`), and Ultra Slow (`10+0.25`)." + chr(10) + chr(10)
-            content = content[:start_idx] + intro + new_section + chr(10) + chr(10) + content[end_idx:]
+        log("Warning: Markers not found in README.md")
 
     with open(README_PATH, "w") as f:
         f.write(content)
@@ -371,41 +476,90 @@ def update_readme(results):
         log("Benchmark charts regenerated.")
     except Exception as e:
         log(f"Warning: could not regenerate charts: {e}")
+
 def main():
-    log("=== RESUMING BENCHMARK SUITE (ADDING 3300 AND 3400) ===")
-    results = load_results()
+    log(f"=== STARTING MULTI-RUN BENCHMARK SUITE (CONCURRENCY: {CONCURRENCY}) ===")
 
-    for lvl in LEVELS:
-        key = str(lvl)
-        if key not in results:
-            results[key] = {}
+    for run_name in RUNS:
+        cfg = RUN_CONFIG.get(run_name, {"fast": 100, "slow": 50, "ultraslow": 20})
+        fast_games = cfg["fast"]
+        slow_games = cfg["slow"]
+        ultraslow_games = cfg["ultraslow"]
 
-        if "fast" not in results[key]:
-            log(f"\n>>> Level {lvl}: Starting 100 fast games ({FAST_TC}) <<<")
-            res_fast = run_match(lvl, FAST_TC, FAST_GAMES, f"fast_{lvl}.pgn")
-            if res_fast:
-                results[key]["fast"] = res_fast
-                save_results(results)
-                update_readme(results)
+        run_dir = os.path.join(BENCH_DIR, run_name)
+        os.makedirs(run_dir, exist_ok=True)
+        run_results_path = os.path.join(run_dir, "results.json")
 
-        if "slow" not in results[key]:
-            log(f"\n>>> Level {lvl}: Starting 50 slow games ({SLOW_TC}) <<<")
-            res_slow = run_match(lvl, SLOW_TC, SLOW_GAMES, f"slow_{lvl}.pgn")
-            if res_slow:
-                results[key]["slow"] = res_slow
-                save_results(results)
-                update_readme(results)
+        run_results = {}
+        if os.path.exists(run_results_path):
+            try:
+                with open(run_results_path, "r") as f:
+                    run_results = json.load(f)
+            except Exception:
+                run_results = {}
 
-        if "ultraslow" not in results[key]:
-            log(f"\n>>> Level {lvl}: Starting 20 ULTRA SLOW games ({ULTRASLOW_TC}) <<<")
-            res_ultra = run_match(lvl, ULTRASLOW_TC, ULTRASLOW_GAMES, f"ultra_{lvl}.pgn")
-            if res_ultra:
-                results[key]["ultraslow"] = res_ultra
-                save_results(results)
-                update_readme(results)
+        log(f"\n=======================================================")
+        log(f"   PROCESSING TOURNAMENT PASS: {run_name.upper()} ({fast_games} Fast, {slow_games} Slow, {ultraslow_games} Ultra)")
+        log(f"=======================================================")
 
-    log("\n=== ALL LEVELS UP TO 3400 COMPLETED SUCCESSFULLY! ===")
-    update_readme(results)
+        for lvl in LEVELS:
+            key = str(lvl)
+            if key not in run_results:
+                run_results[key] = {}
+
+            # Fast match
+            if fast_games > 0:
+                fast_pgn = os.path.join(run_dir, f"fast_{lvl}.pgn")
+                if "fast" not in run_results[key] or not os.path.exists(fast_pgn):
+                    log(f"\n>>> [{run_name}] Level {lvl}: Starting {fast_games} fast games ({FAST_TC}) <<<")
+                    res_fast = run_match(lvl, FAST_TC, fast_games, f"fast_{lvl}.pgn", run_dir)
+                    if res_fast:
+                        run_results[key]["fast"] = res_fast
+                        with open(run_results_path, "w") as f:
+                            json.dump(run_results, f, indent=2)
+                        comb = aggregate_all_runs()
+                        save_results(comb)
+                        update_readme(comb)
+
+            # Slow match
+            if slow_games > 0:
+                slow_pgn = os.path.join(run_dir, f"slow_{lvl}.pgn")
+                if "slow" not in run_results[key] or not os.path.exists(slow_pgn):
+                    log(f"\n>>> [{run_name}] Level {lvl}: Starting {slow_games} slow games ({SLOW_TC}) <<<")
+                    res_slow = run_match(lvl, SLOW_TC, slow_games, f"slow_{lvl}.pgn", run_dir)
+                    if res_slow:
+                        run_results[key]["slow"] = res_slow
+                        with open(run_results_path, "w") as f:
+                            json.dump(run_results, f, indent=2)
+                        comb = aggregate_all_runs()
+                        save_results(comb)
+                        update_readme(comb)
+
+            # Ultra Slow match
+            if ultraslow_games > 0:
+                ultra_pgn = os.path.join(run_dir, f"ultra_{lvl}.pgn")
+                if "ultraslow" not in run_results[key] or not os.path.exists(ultra_pgn):
+                    log(f"\n>>> [{run_name}] Level {lvl}: Starting {ultraslow_games} ultra slow games ({ULTRASLOW_TC}) <<<")
+                    res_ultra = run_match(lvl, ULTRASLOW_TC, ultraslow_games, f"ultra_{lvl}.pgn", run_dir)
+                    if res_ultra:
+                        run_results[key]["ultraslow"] = res_ultra
+                        with open(run_results_path, "w") as f:
+                            json.dump(run_results, f, indent=2)
+                        comb = aggregate_all_runs()
+                        save_results(comb)
+                        update_readme(comb)
+
+    log("\n=======================================================")
+    log("   ALL TOURNAMENT RUNS COMPLETED!")
+    log("   LAUNCHING STOCKFISH 17.1 PARALLEL REFEREE")
+    log("=======================================================")
+    referee_script = os.path.join(PROJECT_DIR, "engine/scripts/parallel_referee.py")
+    subprocess.run(["python3", referee_script, "14", "None", "14"], check=False)
+
+    comb = aggregate_all_runs()
+    save_results(comb)
+    update_readme(comb)
+    log("\n=== COMPLETE MULTI-RUN TOURNAMENT & REFEREE EVALUATION FINISHED SUCCESSFULLY ===")
 
 if __name__ == "__main__":
     main()

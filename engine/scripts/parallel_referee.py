@@ -149,13 +149,18 @@ def analyze_single_game(arg, depth=10):
 def worker_init():
     pass
 
-def run_parallel_referee(depth=10, max_games_per_file=None, workers=10):
-    pgn_files = sorted(glob.glob(os.path.join(BENCH_DIR, "*.pgn")))
+def run_parallel_referee(depth=14, max_games_per_file=None, workers=10, target_run=None):
+    if target_run:
+        pgn_files = sorted(glob.glob(os.path.join(BENCH_DIR, target_run, "*.pgn")))
+        print(f"Targeting run directory: {target_run} ({len(pgn_files)} files)")
+    else:
+        pgn_files = sorted(glob.glob(os.path.join(BENCH_DIR, "**/*.pgn"), recursive=True))
+
     if not pgn_files:
         print("No PGN files found to analyze.")
         return
 
-    print(f"Collecting games from {len(pgn_files)} PGN files...")
+    print(f"Collecting games from {len(pgn_files)} PGN files (depth={depth})...")
     cache = {}
     if os.path.exists(CACHE_JSON):
         try:
@@ -177,7 +182,7 @@ def run_parallel_referee(depth=10, max_games_per_file=None, workers=10):
             if not p.strip():
                 continue
             gtxt = "[Event " + p
-            ghash = hashlib.sha256(gtxt.strip().encode("utf-8")).hexdigest()[:16]
+            ghash = hashlib.sha256(f"{gtxt.strip()}::d{depth}".encode("utf-8")).hexdigest()[:16]
             all_game_hashes.append(ghash)
             if ghash not in cache:
                 to_analyze.append((ghash, gtxt, depth))
@@ -194,9 +199,9 @@ def run_parallel_referee(depth=10, max_games_per_file=None, workers=10):
         print(f"Starting {workers} parallel workers (depth={depth}) for {len(to_analyze)} games...")
         pool = multiprocessing.Pool(processes=workers)
         completed = 0
-        step = max(1, len(to_analyze) // 20)
+        step = 5
 
-        for ghash, res in pool.imap_unordered(analyze_single_game, to_analyze, chunksize=2):
+        for ghash, res in pool.imap_unordered(analyze_single_game, to_analyze, chunksize=1):
             if res:
                 cache[ghash] = res
             completed += 1
@@ -204,7 +209,14 @@ def run_parallel_referee(depth=10, max_games_per_file=None, workers=10):
                 elapsed = time.time() - start_time
                 rate = completed / elapsed if elapsed > 0 else 0
                 pct = (completed / len(to_analyze)) * 100
-                print(f"[{pct:5.1f}%] Analyzed {completed}/{len(to_analyze)} new games ({rate:.1f} games/sec, elapsed {elapsed:.0f}s)")
+                print(f"[{pct:5.1f}%] Analyzed {completed}/{len(to_analyze)} games ({rate:.1f} games/sec, elapsed {elapsed:.0f}s)", flush=True)
+
+            if completed % 50 == 0:
+                try:
+                    with open(CACHE_JSON, "w") as fp:
+                        json.dump(cache, fp)
+                except Exception:
+                    pass
 
         pool.close()
         pool.join()
@@ -221,6 +233,7 @@ def run_parallel_referee(depth=10, max_games_per_file=None, workers=10):
 
     # Aggregate stats
     agg = {
+        "run": target_run or "all",
         "games_analyzed": len(results),
         "total_moves": sum(r["total_moves"] for r in results),
         "total_cpl": sum(r["total_cpl"] for r in results),
@@ -252,11 +265,12 @@ def run_parallel_referee(depth=10, max_games_per_file=None, workers=10):
         agg["mistake_pct"] = round((agg["mistake"] / agg["total_moves"]) * 100, 1)
         agg["blunder_pct"] = round((agg["blunder"] / agg["total_moves"]) * 100, 1)
 
-    with open(VERDICT_JSON, "w") as fp:
+    target_verdict = os.path.join(BENCH_DIR, target_run, "referee_verdict.json") if target_run else VERDICT_JSON
+    with open(target_verdict, "w") as fp:
         json.dump(agg, fp, indent=2)
 
     print("\n=======================================================")
-    print("       FULL STOCKFISH 17.1 PARALLEL REFEREE VERDICT    ")
+    print(f"   STOCKFISH 17.1 REFEREE VERDICT ({target_run.upper() if target_run else 'ALL'})")
     print("=======================================================")
     print(f"Total Games Analyzed: {agg['games_analyzed']}")
     print(f"Total pawnGO Moves  : {agg['total_moves']}")
@@ -266,16 +280,17 @@ def run_parallel_referee(depth=10, max_games_per_file=None, workers=10):
     print(f"Black Performance   : {agg['black_accuracy']}% accuracy ({agg['black_acpl']} ACPL)")
     print("-------------------------------------------------------")
     print("Move Quality Distribution:")
-    print(f"  ★ Best Moves   : {agg['best']} ({agg['best_pct']}%)")
-    print(f"  ✓ Good Moves   : {agg['good']} ({agg['good_pct']}%)")
-    print(f"  ?! Inaccuracies: {agg['inacc']} ({agg['inacc_pct']}%)")
-    print(f"  ? Mistakes     : {agg['mistake']} ({agg['mistake_pct']}%)")
-    print(f"  ?? Blunders    : {agg['blunder']} ({agg['blunder_pct']}%)")
+    print(f"  [*] Best Moves   : {agg['best']} ({agg['best_pct']}%)")
+    print(f"  [+] Good Moves   : {agg['good']} ({agg['good_pct']}%)")
+    print(f"  [?!] Inaccuracies: {agg['inacc']} ({agg['inacc_pct']}%)")
+    print(f"  [?] Mistakes     : {agg['mistake']} ({agg['mistake_pct']}%)")
+    print(f"  [??] Blunders    : {agg['blunder']} ({agg['blunder_pct']}%)")
     print("=======================================================")
-    print(f"Referee verdict saved to: {VERDICT_JSON}")
+    print(f"Referee verdict saved to: {target_verdict}")
 
 if __name__ == "__main__":
-    depth_arg = int(sys.argv[1]) if len(sys.argv) > 1 else 10
+    depth_arg = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1] != "None" else 14
     limit_arg = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2] != "None" else None
-    workers_arg = int(sys.argv[3]) if len(sys.argv) > 3 else 10
-    run_parallel_referee(depth=depth_arg, max_games_per_file=limit_arg, workers=workers_arg)
+    workers_arg = int(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3] != "None" else 14
+    run_arg = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] != "None" else None
+    run_parallel_referee(depth=depth_arg, max_games_per_file=limit_arg, workers=workers_arg, target_run=run_arg)

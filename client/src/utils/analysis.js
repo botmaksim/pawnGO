@@ -52,7 +52,7 @@ export function classifyMove(nodeA, nodeB, sanMove) {
     const ply = nodeB.ply || 0;
     const isBookCandidate = ply <= 30 && !gameB.isGameOver();
     if (isBookCandidate && (nodeA.isBook || nodeB.isBook || nodeA.pvLines?.['1']?.score === 'Book' || nodeB.pvLines?.['1']?.score === 'Book')) {
-        return '📖'; // Book move
+        return 'B'; // Book move
     }
 
     if (!nodeA.pvLines || !nodeB.pvLines) return '';
@@ -155,7 +155,7 @@ export function classifyMove(nodeA, nodeB, sanMove) {
 
 export function getAnnotationDescription(annotation) {
     switch (annotation) {
-        case '📖': return 'Book Move';
+        case 'B': return 'Book Move';
         case '!!': return 'Brilliant Move';
         case '!': return 'Great Move';
         case '★': return 'Best Move';

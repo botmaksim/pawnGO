@@ -8,6 +8,8 @@ Generate publication-quality advanced analytics charts for pawnGO README:
 import os
 import glob
 import re
+import json
+import math
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -67,8 +69,29 @@ def normalize_opening(op):
         return "Queen's Indian Defense"
     return op.title()
 
+def compute_ci(w, l, d, z=1.96):
+    tot = w + l + d
+    if tot == 0:
+        return 0.0, 0.0, 0.0, 0.0
+    pts = w + 0.5 * d
+    p = pts / tot
+    denom = 1.0 + (z**2) / tot
+    center = (p + (z**2) / (2.0 * tot)) / denom
+    spread = z * math.sqrt((p * (1.0 - p) / tot) + (z**2) / (4.0 * tot**2)) / denom
+    if tot > 1 and p * (1.0 - p) > 0:
+        var_trinomial = (w * (1.0 - p)**2 + d * (0.5 - p)**2 + l * (0.0 - p)**2) / tot
+        var_bernoulli = p * (1.0 - p)
+        if var_bernoulli > 0:
+            scale = math.sqrt(max(0.2, var_trinomial / var_bernoulli))
+            spread *= scale
+    rate_pct = round(p * 100.0, 1)
+    lower_pct = round(max(0.0, (center - spread) * 100.0), 1)
+    upper_pct = round(min(100.0, (center + spread) * 100.0), 1)
+    margin_pct = round((upper_pct - lower_pct) / 2.0, 1)
+    return rate_pct, lower_pct, upper_pct, margin_pct
+
 def generate_advanced_charts():
-    pgn_files = glob.glob(os.path.join(BENCH_DIR, "*.pgn"))
+    pgn_files = glob.glob(os.path.join(BENCH_DIR, "**/*.pgn"), recursive=True)
     if not pgn_files:
         print("No PGN files found.")
         return
@@ -194,21 +217,29 @@ def generate_advanced_charts():
 
     bin_labels = list(phase_bins.keys())
     bin_rates = []
+    bin_lowers = []
+    bin_uppers = []
+    bin_margins = []
     for k in bin_labels:
         w, l, d = phase_bins[k]
-        tot = w + l + d
-        pct = round(((w + 0.5 * d) / tot) * 100, 1) if tot > 0 else 0
-        bin_rates.append(pct)
+        r, low, up, m = compute_ci(w, l, d)
+        bin_rates.append(r)
+        bin_lowers.append(low)
+        bin_uppers.append(up)
+        bin_margins.append(m)
 
     x_bins = np.arange(len(bin_labels))
     colors = ["#2ea043" if r >= 60 else ("#58a6ff" if r >= 50 else "#f0883e") for r in bin_rates]
     ax1.bar(x_bins, bin_rates, 0.52, color=colors, edgecolor="#30363d")
+    ax1.errorbar(x_bins, bin_rates, yerr=[np.array(bin_rates) - np.array(bin_lowers), np.array(bin_uppers) - np.array(bin_rates)],
+                 fmt="none", ecolor="#ffffff", elinewidth=1.6, capsize=4.5, capthick=1.6, alpha=0.9, zorder=6)
     ax1.axhline(50, color="#f85149", linestyle=":", linewidth=2, alpha=0.9, label="50% Parity Line")
 
     for i, r in enumerate(bin_rates):
         w, l, d = phase_bins[bin_labels[i]]
-        ax1.annotate(f"{r}%\n(+{w} -{l} ={d})", (x_bins[i], r + 3),
-                     ha="center", fontsize=9.5, fontweight="bold", color="#ffffff")
+        m = bin_margins[i]
+        ax1.annotate(f"{r}% (±{m:.1f}%)\n(+{w} -{l} ={d})", (x_bins[i], r + 3),
+                     ha="center", fontsize=9.0, fontweight="bold", color="#ffffff")
 
     ax1.set_title("Score by Game Length Bracket", fontsize=12, fontweight="bold", color="#f0f6fc", pad=10)
     ax1.set_xlabel("Game Length", fontsize=10.5, fontweight="bold", color="#c9d1d9", labelpad=8)
@@ -339,10 +370,44 @@ def generate_advanced_charts():
         fig2.savefig(out2, facecolor=fig2.get_facecolor(), edgecolor="none", bbox_inches="tight")
         plt.close(fig2)
 
+    # Save structured summary for automated README generation
+    summary_data = {
+        "total_games": len(win_lengths) + len(loss_lengths) + len(draw_lengths),
+        "phase_bins": {
+            k: {
+                "wins": phase_bins[k][0],
+                "losses": phase_bins[k][1],
+                "draws": phase_bins[k][2],
+                "total": phase_bins[k][0] + phase_bins[k][1] + phase_bins[k][2],
+                "score": round(((phase_bins[k][0] + 0.5 * phase_bins[k][2]) / max(1, phase_bins[k][0] + phase_bins[k][1] + phase_bins[k][2])) * 100, 1)
+            } for k in phase_bins
+        },
+        "med_w": round(float(med_w), 1),
+        "mean_w": round(float(mean_w), 1),
+        "med_l": round(float(med_l), 1),
+        "mean_l": round(float(mean_l), 1),
+        "tiers": {}
+    }
+    for t in tiers:
+        tier_ops = []
+        for op in top_ops:
+            w, l, d = openings_data[op]["tiers"][t]
+            tot = w + l + d
+            if tot > 0:
+                pct = round(((w + 0.5 * d) / tot) * 100, 1)
+                tier_ops.append([op, pct, tot])
+        tier_ops.sort(key=lambda x: x[1], reverse=True)
+        summary_data["tiers"][t] = tier_ops
+
+    summary_file = os.path.join(BENCH_DIR, "analytics_summary.json")
+    with open(summary_file, "w") as fp:
+        json.dump(summary_data, fp, indent=2)
+
     print("Advanced analytics charts generated:")
     print(f"  - {out1}")
     if top_ops:
         print(f"  - {out2}")
+    print(f"  - {summary_file}")
 
 if __name__ == "__main__":
     generate_advanced_charts()

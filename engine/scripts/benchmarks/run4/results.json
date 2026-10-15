@@ -1,0 +1,29 @@
+{
+  "2200": {
+    "slow": {
+      "wins": 98,
+      "losses": 2,
+      "draws": 0,
+      "points": 98.0,
+      "total": 100,
+      "win_rate": 98.0,
+      "duration_sec": 136.5,
+      "white": {
+        "wins": 49,
+        "losses": 1,
+        "draws": 0,
+        "points": 49.0,
+        "total": 50,
+        "win_rate": 98.0
+      },
+      "black": {
+        "wins": 49,
+        "losses": 1,
+        "draws": 0,
+        "points": 49.0,
+        "total": 50,
+        "win_rate": 98.0
+      }
+    }
+  }
+}
