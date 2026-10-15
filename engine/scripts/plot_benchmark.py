@@ -163,7 +163,8 @@ def generate_charts():
 
     for i, r in enumerate(overall_rates):
         m = overall_margins[i]
-        ax1.annotate(f"{r}%\n±{m:.1f}%", (x[i], r), textcoords="offset points", xytext=(0, 10),
+        y_off = 10 if r <= 88 else -18
+        ax1.annotate(f"{r}%\n±{m:.1f}%", (x[i], r), textcoords="offset points", xytext=(0, y_off),
                      ha="center", fontsize=8.2, fontweight="bold", color="#ffffff")
 
     ax1.set_title("pawnGO Overall Win Rate (with 95% Confidence Band)", fontsize=13, fontweight="bold", color="#f0f6fc", pad=12)
@@ -171,7 +172,7 @@ def generate_charts():
     ax1.set_ylabel("Overall Win Rate (%)", fontsize=11, fontweight="bold", color="#c9d1d9", labelpad=8)
     ax1.set_xticks(x)
     ax1.set_xticklabels([f"SF {lvl}" for lvl in active_levels], rotation=20)
-    ax1.set_ylim(-3, 112)
+    ax1.set_ylim(-5, 118)
     ax1.legend(loc="lower left", facecolor="#161b22", edgecolor="#30363d", fontsize=9.0, labelcolor="#c9d1d9")
 
     # Panel B: Outcome Distribution Stacked Bar
@@ -184,17 +185,18 @@ def generate_charts():
     ax2.bar(x, draws, bar_width, bottom=wins, label="Draws", color="#8b949e", edgecolor="#30363d")
     ax2.bar(x, losses, bar_width, bottom=wins+draws, label="Losses", color="#da3633", edgecolor="#30363d")
 
+    # Only annotate segment if height >= 35 games to eliminate small-segment label collisions
     for i in range(len(active_levels)):
         tot = total_games[i]
         w, d, l = wins[i], draws[i], losses[i]
-        if w > 0:
+        if w >= 35:
             ax2.text(x[i], w / 2, f"+{w}", ha="center", va="center", color="#ffffff", fontsize=8, fontweight="bold")
-        if d > 0:
+        if d >= 35:
             ax2.text(x[i], w + d / 2, f"={d}", ha="center", va="center", color="#ffffff", fontsize=7.5, fontweight="bold")
-        if l > 0:
+        if l >= 35:
             ax2.text(x[i], w + d + l / 2, f"-{l}", ha="center", va="center", color="#ffffff", fontsize=8, fontweight="bold")
-        ax2.annotate(f"{tot}G", (x[i], tot), textcoords="offset points", xytext=(0, 4),
-                     ha="center", fontsize=8.5, color="#8b949e")
+        ax2.annotate(f"{tot}G", (x[i], tot), textcoords="offset points", xytext=(0, 6),
+                     ha="center", fontsize=8.5, fontweight="bold", color="#8b949e")
 
     ax2.set_title("Match Outcomes Distribution (Wins / Draws / Losses)", fontsize=13, fontweight="bold", color="#f0f6fc", pad=12)
     ax2.set_xlabel("Stockfish Target Elo", fontsize=11, fontweight="bold", color="#c9d1d9", labelpad=8)
@@ -202,7 +204,7 @@ def generate_charts():
     ax2.set_xticks(x)
     ax2.set_xticklabels([f"SF {lvl}" for lvl in active_levels], rotation=20)
     max_tot = max(total_games) if total_games else 100
-    ax2.set_ylim(0, max_tot * 1.15)
+    ax2.set_ylim(0, max_tot * 1.20)
     ax2.legend(loc="upper right", facecolor="#161b22", edgecolor="#30363d", fontsize=9.5, labelcolor="#c9d1d9")
 
     fig1.suptitle("pawnGO Overall Gauntlet Performance Summary with 95% Confidence Bounds", fontsize=15, fontweight="bold", color="#58a6ff", y=0.98)
@@ -222,10 +224,23 @@ def generate_charts():
     for a in (ax2_1, ax2_2, ax2_3):
         set_dark_theme(a)
 
+    def get_parity_str(cis):
+        valid = [(active_levels[i], cis[i][0]) for i in range(len(active_levels)) if cis[i] is not None]
+        for j in range(len(valid) - 1):
+            l1, y1 = valid[j]
+            l2, y2 = valid[j+1]
+            if y1 >= 50.0 and y2 <= 50.0 and y1 != y2:
+                p = l1 + (y1 - 50.0) / (y1 - y2) * (l2 - l1)
+                return f"Parity ~{int(round(p))}"
+        return "Parity ~2920"
+
+    p_slow = get_parity_str(slow_cis)
+    p_ultra = get_parity_str(ultra_cis)
+
     panels = [
         (ax2_1, fast_cis, "#58a6ff", "Fast Blitz (2+0.05)", "Tactical Sharpness & Early Punish"),
-        (ax2_2, slow_cis, "#bc8cff", "Slower Blitz (5+0.1)", "Stable Positional Play (Parity ~2850)"),
-        (ax2_3, ultra_cis, "#f0883e", "Ultra Slow (10+0.25)", "Deep Search & Precision (Parity ~2900)")
+        (ax2_2, slow_cis, "#bc8cff", "Slower Blitz (5+0.1)", f"Stable Positional Play ({p_slow})"),
+        (ax2_3, ultra_cis, "#f0883e", "Ultra Slow (10+0.25)", f"Deep Search & Precision ({p_ultra})")
     ]
 
     for ax_p, cis, color, title, subtitle in panels:
@@ -243,7 +258,8 @@ def generate_charts():
             ax_p.axhline(50, color="#f85149", linestyle=":", linewidth=1.8, alpha=0.9, label="50% Parity Line")
 
             for idx, val, m in zip(xi, yi, margins):
-                ax_p.annotate(f"{val}%\n±{m:.1f}%", (idx, val), textcoords="offset points", xytext=(0, 9),
+                y_off = 9 if val <= 85 else -16
+                ax_p.annotate(f"{val}%\n±{m:.1f}%", (idx, val), textcoords="offset points", xytext=(0, y_off),
                               ha="center", fontsize=7.8, color="#ffffff", fontweight="bold")
 
         ax_p.set_title(f"{title}\n{subtitle}", fontsize=11, fontweight="bold", color="#f0f6fc", pad=10)
@@ -251,7 +267,7 @@ def generate_charts():
         ax_p.set_ylabel("Win Rate (%)", fontsize=10, fontweight="bold", color="#c9d1d9", labelpad=6)
         ax_p.set_xticks(x)
         ax_p.set_xticklabels([f"SF {lvl}" for lvl in active_levels], rotation=25, fontsize=8.5)
-        ax_p.set_ylim(-5, 114)
+        ax_p.set_ylim(-6, 118)
         ax_p.legend(loc="lower left", facecolor="#161b22", edgecolor="#30363d", fontsize=8.2, labelcolor="#c9d1d9")
 
     fig2.suptitle("pawnGO Performance Across Time Controls with 95% Confidence Intervals", fontsize=15, fontweight="bold", color="#58a6ff", y=1.02)
@@ -324,7 +340,7 @@ def generate_charts():
         ax3_1.set_ylabel("Win Rate (%)", fontsize=11, fontweight="bold", color="#c9d1d9", labelpad=8)
         ax3_1.set_xticks(xi_wb)
         ax3_1.set_xticklabels([f"SF {active_levels[i]}" for i in xi_wb], rotation=20)
-        ax3_1.set_ylim(-10, 118)
+        ax3_1.set_ylim(-12, 122)
         ax3_1.legend(loc="upper right", facecolor="#161b22", edgecolor="#30363d", fontsize=9.0, labelcolor="#c9d1d9")
 
         # Right: First-Move Advantage Delta with Error Propagation
@@ -339,7 +355,7 @@ def generate_charts():
 
         pill_delta = dict(boxstyle="round,pad=0.15", facecolor="#161b22", edgecolor="#30363d", alpha=0.75, linewidth=0.5)
         for i, d in enumerate(deltas):
-            y_pos = d + (delta_margins[i] + 1.2 if d >= 0 else -(delta_margins[i] + 3.2))
+            y_pos = d + (delta_margins[i] + 1.8 if d >= 0 else -(delta_margins[i] + 4.0))
             ax3_2.annotate(f"{d:+.1f}%\n(±{delta_margins[i]:.1f}%)", (xi_wb[i], y_pos), ha="center", fontsize=7.2,
                            fontweight="bold", color="#f0f6fc", bbox=pill_delta)
 
@@ -349,7 +365,7 @@ def generate_charts():
         ax3_2.set_xticks(xi_wb)
         ax3_2.set_xticklabels([f"SF {active_levels[i]}" for i in xi_wb], rotation=20)
         max_d = max(abs(deltas.min() - delta_margins.max()), abs(deltas.max() + delta_margins.max())) if len(deltas) > 0 else 10
-        ax3_2.set_ylim(-max_d * 1.35, max_d * 1.35)
+        ax3_2.set_ylim(-max_d * 1.45, max_d * 1.45)
 
     fig3.suptitle("pawnGO Color Asymmetry & Opening Balance Analysis with Error Propagation", fontsize=15, fontweight="bold", color="#58a6ff", y=0.98)
     plt.tight_layout()

@@ -77,21 +77,21 @@ To establish pawnGO's playing strength, a multi-run tournament benchmark of up t
 
 | Opponent Target | Fast Blitz (`2+0.05`) | Slower Blitz (`5+0.1`) | Ultra Slow (`10+0.25`) | Playing White | Playing Black | Total Score | Win Rate | Performance Rating |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Stockfish 2200** | +287 -10 =3 (96.2%) | +247 -2 =1 (99.0%) | +60 -0 =0 (100.0%) | 301.0/305 (98.7%) | 295.0/305 (96.7%) | **596.0 / 610** | **97.7%** | ~2851 Elo |
-| **Stockfish 2300** | +289 -8 =3 (96.8%) | +148 -2 =0 (98.7%) | +59 -1 =0 (98.3%) | 252.5/255 (99.0%) | 245.0/255 (96.1%) | **497.5 / 510** | **97.5%** | ~2936 Elo |
-| **Stockfish 2400** | +284 -15 =1 (94.8%) | +142 -6 =2 (95.3%) | +58 -1 =1 (97.5%) | 244.5/255 (95.9%) | 241.5/255 (94.7%) | **486.0 / 510** | **95.3%** | ~2923 Elo |
-| **Stockfish 2500** | +270 -15 =15 (92.5%) | +139 -9 =2 (93.3%) | +58 -1 =1 (97.5%) | 242.5/255 (95.1%) | 233.5/255 (91.6%) | **476.0 / 510** | **93.3%** | ~2958 Elo |
-| **Stockfish 2600** | +247 -35 =18 (85.3%) | +136 -8 =6 (92.7%) | +57 -1 =2 (96.7%) | 231.5/255 (90.8%) | 221.5/255 (86.9%) | **453.0 / 510** | **88.8%** | ~2960 Elo |
-| **Stockfish 2700** | +205 -61 =34 (74.0%) | +113 -26 =11 (79.0%) | +51 -4 =5 (89.2%) | 201.0/255 (78.8%) | 193.0/255 (75.7%) | **394.0 / 510** | **77.3%** | ~2913 Elo |
-| **Stockfish 2800** | +142 -109 =49 (55.5%) | +78 -45 =27 (61.0%) | +34 -14 =12 (66.7%) | 154.5/255 (60.6%) | 143.5/255 (56.3%) | **298.0 / 510** | **58.4%** | ~2859 Elo |
-| **Stockfish 2900** | +124 -130 =46 (49.0%) | +73 -48 =29 (58.3%) | +22 -24 =14 (48.3%) | 140.5/255 (55.1%) | 123.0/255 (48.2%) | **263.5 / 510** | **51.7%** | ~2912 Elo |
-| **Stockfish 3000** | +109 -145 =46 (44.0%) | +46 -67 =37 (43.0%) | +16 -25 =19 (42.5%) | 111.5/255 (43.7%) | 110.5/255 (43.3%) | **222.0 / 510** | **43.5%** | ~2955 Elo |
-| **Stockfish 3100** | +79 -180 =41 (33.2%) | +32 -80 =38 (34.0%) | +10 -37 =13 (27.5%) | 92.5/255 (36.3%) | 74.5/255 (29.2%) | **167.0 / 510** | **32.7%** | ~2975 Elo |
-| **Stockfish 3200** | +62 -196 =42 (27.7%) | +31 -88 =31 (31.0%) | +10 -33 =17 (30.8%) | 81.5/255 (32.0%) | 66.5/255 (26.1%) | **148.0 / 510** | **29.0%** | ~3044 Elo |
-| **Stockfish 3300** | +70 -183 =47 (31.2%) | +42 -74 =34 (39.3%) | +15 -29 =16 (38.3%) | 99.0/255 (38.8%) | 76.5/255 (30.0%) | **175.5 / 510** | **34.4%** | ~3188 Elo |
-| **Stockfish 3400** | +61 -181 =58 (30.0%) | +28 -98 =24 (26.7%) | +12 -36 =12 (30.0%) | 78.0/255 (30.6%) | 70.0/255 (27.5%) | **148.0 / 510** | **29.0%** | ~3244 Elo |
-| **Stockfish 3500** | +49 -209 =42 (23.3%) | +23 -105 =22 (22.7%) | +10 -37 =13 (27.5%) | 69.0/255 (27.1%) | 51.5/255 (20.2%) | **120.5 / 510** | **23.6%** | ~3296 Elo |
-| **Stockfish 3600** | +2 -290 =8 (2.0%) | +0 -145 =5 (1.7%) | +0 -58 =2 (1.7%) | 7.0/255 (2.7%) | 2.5/255 (1.0%) | **9.5 / 510** | **1.9%** | ~2915 Elo |
+| **Stockfish 2200** | +287 -10 =3 (96.2%) | +247 -2 =1 (99.0%) | +98 -1 =1 (98.5%) | 320.0/325 (98.5%) | 314.5/325 (96.8%) | **634.5 / 650** | **97.6%** | ~2844 Elo |
+| **Stockfish 2300** | +289 -8 =3 (96.8%) | +247 -3 =0 (98.8%) | +99 -1 =0 (99.0%) | 322.5/325 (99.2%) | 314.0/325 (96.6%) | **636.5 / 650** | **97.9%** | ~2967 Elo |
+| **Stockfish 2400** | +284 -15 =1 (94.8%) | +232 -13 =5 (93.8%) | +96 -2 =2 (97.0%) | 310.0/325 (95.4%) | 306.0/325 (94.2%) | **616.0 / 650** | **94.8%** | ~2904 Elo |
+| **Stockfish 2500** | +270 -15 =15 (92.5%) | +233 -13 =4 (94.0%) | +94 -4 =2 (95.0%) | 308.5/325 (94.9%) | 299.0/325 (92.0%) | **607.5 / 650** | **93.5%** | ~2963 Elo |
+| **Stockfish 2600** | +247 -35 =18 (85.3%) | +226 -14 =10 (92.4%) | +93 -2 =5 (95.5%) | 298.0/325 (91.7%) | 284.5/325 (87.5%) | **582.5 / 650** | **89.6%** | ~2974 Elo |
+| **Stockfish 2700** | +205 -61 =34 (74.0%) | +192 -41 =17 (80.2%) | +83 -8 =9 (87.5%) | 259.0/325 (79.7%) | 251.0/325 (77.2%) | **510.0 / 650** | **78.5%** | ~2925 Elo |
+| **Stockfish 2800** | +142 -109 =49 (55.5%) | +119 -85 =46 (56.8%) | +59 -21 =20 (69.0%) | 191.0/325 (58.8%) | 186.5/325 (57.4%) | **377.5 / 650** | **58.1%** | ~2857 Elo |
+| **Stockfish 2900** | +124 -130 =46 (49.0%) | +111 -89 =50 (54.4%) | +42 -35 =23 (53.5%) | 183.0/325 (56.3%) | 153.5/325 (47.2%) | **336.5 / 650** | **51.8%** | ~2913 Elo |
+| **Stockfish 3000** | +109 -145 =46 (44.0%) | +87 -103 =60 (46.8%) | +26 -44 =30 (41.0%) | 145.0/325 (44.6%) | 145.0/325 (44.6%) | **290.0 / 650** | **44.6%** | ~2962 Elo |
+| **Stockfish 3100** | +79 -180 =41 (33.2%) | +54 -138 =58 (33.2%) | +20 -59 =21 (30.5%) | 115.0/325 (35.4%) | 98.0/325 (30.2%) | **213.0 / 650** | **32.8%** | ~2975 Elo |
+| **Stockfish 3200** | +62 -196 =42 (27.7%) | +47 -153 =50 (28.8%) | +15 -62 =23 (26.5%) | 104.0/325 (32.0%) | 77.5/325 (23.8%) | **181.5 / 650** | **27.9%** | ~3035 Elo |
+| **Stockfish 3300** | +70 -183 =47 (31.2%) | +72 -132 =46 (38.0%) | +21 -54 =25 (33.5%) | 125.0/325 (38.5%) | 97.0/325 (29.8%) | **222.0 / 650** | **34.2%** | ~3186 Elo |
+| **Stockfish 3400** | +61 -181 =58 (30.0%) | +47 -160 =43 (27.4%) | +13 -61 =26 (26.0%) | 100.0/325 (30.8%) | 84.5/325 (26.0%) | **184.5 / 650** | **28.4%** | ~3239 Elo |
+| **Stockfish 3500** | +49 -209 =42 (23.3%) | +42 -170 =38 (24.4%) | +14 -60 =26 (27.0%) | 88.0/325 (27.1%) | 70.0/325 (21.5%) | **158.0 / 650** | **24.3%** | ~3303 Elo |
+| **Stockfish 3600** | +2 -290 =8 (2.0%) | +0 -244 =6 (1.2%) | +0 -97 =3 (1.5%) | 7.5/325 (2.3%) | 3.0/325 (0.9%) | **10.5 / 650** | **1.6%** | ~2884 Elo |
 
 ---
 
@@ -138,11 +138,11 @@ The score inflection at level 3300 occurs due to the transition between strength
   <img src="assets/benchmark_game_phases.png" alt="pawnGO Game Length and Phase Analysis" width="100%" />
 </p>
 
-- **Under 35 moves**: 77.2% score (+1128 -324 =28, 1480 games). Early tactical sharpness and NNUE evaluation deliver high conversion before complex endgames.
-- **35 to 50 moves**: 58.1% score (+1325 -945 =80, 2350 games). Stable performance in full middlegames.
-- **50 to 70 moves**: 47.6% score (+954 -1059 =199, 2212 games). Transitions into 6- and 7-piece endings prior to 5-piece Syzygy tablebase resolution represent the primary challenge against 3000+ opponents.
-- **Over 70 moves**: 49.5% score (+525 -541 =542, 1608 games). High draw frequency (542 draws) and 5-piece tablebase holds.
-- **Game Length Distribution**: Wins resolve with a median of 44 moves (mean 48.5 moves); losses resolve with a median of 53 moves (mean 55.9 moves).
+- **Under 35 moves**: 77.9% score (+1443 -398 =30, 1871 games). Early tactical sharpness and NNUE evaluation deliver high conversion before complex endgames.
+- **35 to 50 moves**: 58.3% score (+1688 -1194 =97, 2979 games). Stable performance in full middlegames.
+- **50 to 70 moves**: 47.7% score (+1215 -1343 =259, 2817 games). Transitions into 6- and 7-piece endings prior to 5-piece Syzygy tablebase resolution represent the primary challenge against 3000+ opponents.
+- **Over 70 moves**: 49.0% score (+663 -703 =717, 2083 games). High draw frequency (717 draws) and 5-piece tablebase holds.
+- **Game Length Distribution**: Wins resolve with a median of 44 moves (mean 48.3 moves); losses resolve with a median of 53 moves (mean 56.2 moves).
 - **Adjudication**: Games were adjudicated by `cutechess-cli` using mutual draw rules (within $\pm 10$ cp for 6 plies after move 40), resignation threshold (600 cp deficit for 4 plies), and 5-piece Syzygy tablebases.
 
 ---
@@ -153,27 +153,27 @@ The score inflection at level 3300 occurs due to the transition between strength
   <img src="assets/benchmark_openings.png" alt="pawnGO Opening Repertoire Performance Across Rating Levels" width="100%" />
 </p>
 
-Performance across 7,650 tournament games distributed into three opponent rating tiers:
-- **2200–2600 Elo**: Scotch Game 98%, Giuoco Piano 97%, Queen's Bishop Game 96%, English Opening 95%, Queen's Gambit Declined 95%, Caro-Kann Defense 95%, Grünfeld Defense 95%, French Defense 94%.
-- **2700–3100 Elo (peer tier)**: French Defense 57.2%, Scotch Game 56.2%, English Opening 55.9%, Pirc / Modern Defense 55.1%, Queen's Gambit Declined 53.1%, Grünfeld Defense 52.9%, Giuoco Piano 51.7%, Sicilian Defense 51.5%.
-- **3200–3600 Elo (top Stockfish)**: Scotch Game 29.0%, English Opening 26.8%, French Defense 26.0%, Queen's Gambit Declined 25.7%, Giuoco Piano 24.1%, Pirc / Modern Defense 23.3%, Queen's Bishop Game 22.9%, Sicilian Defense 22.6%.
+Performance across 9,750 tournament games distributed into three opponent rating tiers:
+- **2200–2600 Elo**: Scotch Game 98%, Two Knights Defense 96%, Queen's Bishop Game 96%, English Opening 96%, Caro-Kann Defense 95%, Queen's Gambit Declined 95%, French Defense 94%, Sicilian Defense 94%.
+- **2700–3100 Elo (peer tier)**: Pirc / Modern Defense 55.8%, English Opening 55.5%, Grünfeld Defense 55.0%, French Defense 54.8%, Scotch Game 54.4%, Queen's Gambit Declined 53.5%, Sicilian Defense 53.1%, Queen's Bishop Game 52.7%.
+- **3200–3600 Elo (top Stockfish)**: Scotch Game 30.0%, English Opening 26.5%, Queen's Gambit Declined 26.1%, French Defense 24.8%, Pirc / Modern Defense 23.2%, Sicilian Defense 22.2%, Queen's Bishop Game 21.7%, Caro-Kann Defense 21.2%.
 
 ---
 ### Stockfish 17.1 Parallel Referee Evaluation
 
-> Independent evaluation by official Stockfish 17.1 referee over **2,550 tournament games** and **144,507 pawnGO moves**:
+> Independent evaluation by official Stockfish 17.1 referee over **9,750 tournament games** and **555,138 pawnGO moves**:
 
 | Metric | pawnGO Engine Performance |
 | :--- | :--- |
-| **Overall Accuracy** | **88.3%** |
-| **Average Centipawn Loss (ACPL)** | **29.2 cp** |
-| **White Accuracy / ACPL** | **88.6%** (28.6 cp) |
-| **Black Accuracy / ACPL** | **88.0%** (29.9 cp) |
-| **Best Moves** | **79,821** (55.2%) |
-| **Good Moves** | **31,522** (21.8%) |
-| **Inaccuracies** | 22,851 (15.8%) |
-| **Mistakes** | 8,057 (5.6%) |
-| **Blunders** | **2,256 (1.6%)** |
+| **Overall Accuracy** | **88.6%** |
+| **Average Centipawn Loss (ACPL)** | **28.5 cp** |
+| **White Accuracy / ACPL** | **88.8%** (28.0 cp) |
+| **Black Accuracy / ACPL** | **88.4%** (28.9 cp) |
+| **Best Moves** | **309,181** (55.7%) |
+| **Good Moves** | **120,914** (21.8%) |
+| **Inaccuracies** | 86,768 (15.6%) |
+| **Mistakes** | 30,176 (5.4%) |
+| **Blunders** | **8,099 (1.5%)** |
 
 ---
 

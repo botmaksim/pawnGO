@@ -1,194 +1,194 @@
 {
-  "total_games": 7750,
+  "total_games": 9750,
   "phase_bins": {
     "< 35 moves": {
-      "wins": 1178,
-      "losses": 324,
-      "draws": 28,
-      "total": 1530,
+      "wins": 1443,
+      "losses": 398,
+      "draws": 30,
+      "total": 1871,
       "score": 77.9
     },
     "35\u201350 moves": {
-      "wins": 1360,
-      "losses": 945,
-      "draws": 80,
-      "total": 2385,
-      "score": 58.7
+      "wins": 1688,
+      "losses": 1194,
+      "draws": 97,
+      "total": 2979,
+      "score": 58.3
     },
     "50\u201370 moves": {
-      "wins": 965,
-      "losses": 1059,
-      "draws": 199,
-      "total": 2223,
-      "score": 47.9
+      "wins": 1215,
+      "losses": 1343,
+      "draws": 259,
+      "total": 2817,
+      "score": 47.7
     },
     "> 70 moves": {
-      "wins": 527,
-      "losses": 543,
-      "draws": 542,
-      "total": 1612,
-      "score": 49.5
+      "wins": 663,
+      "losses": 703,
+      "draws": 717,
+      "total": 2083,
+      "score": 49.0
     }
   },
-  "med_w": 43.0,
-  "mean_w": 48.1,
+  "med_w": 44.0,
+  "mean_w": 48.3,
   "med_l": 53.0,
-  "mean_l": 55.9,
+  "mean_l": 56.2,
   "tiers": {
     "2200\u20132600": [
       [
         "Scotch Game",
-        97.7,
-        86
-      ],
-      [
-        "Giuoco Piano",
-        97.2,
-        88
+        98.1,
+        105
       ],
       [
         "Two Knights Defense",
-        97.2,
-        89
+        96.3,
+        108
       ],
       [
         "Queen's Bishop Game",
-        96.6,
-        89
+        96.3,
+        109
       ],
       [
         "English Opening",
-        95.6,
-        271
-      ],
-      [
-        "Queen's Gambit Declined",
-        94.9,
-        273
+        95.7,
+        327
       ],
       [
         "Caro-Kann Defense",
-        94.9,
-        178
+        95.4,
+        216
+      ],
+      [
+        "Queen's Gambit Declined",
+        95.2,
+        332
       ],
       [
         "French Defense",
-        94.1,
-        178
+        94.2,
+        223
       ],
       [
         "Sicilian Defense",
-        93.9,
-        437
+        93.8,
+        538
       ],
       [
         "Pirc / Modern Defense",
-        91.4,
-        174
+        93.0,
+        213
+      ],
+      [
+        "Gr\u00fcnfeld Defense",
+        92.5,
+        106
       ]
     ],
     "2700\u20133100": [
       [
-        "French Defense",
-        57.2,
-        173
-      ],
-      [
-        "Scotch Game",
-        56.2,
-        89
+        "Pirc / Modern Defense",
+        55.8,
+        217
       ],
       [
         "English Opening",
-        55.9,
-        247
+        55.5,
+        316
       ],
       [
-        "Pirc / Modern Defense",
-        55.1,
-        168
+        "Gr\u00fcnfeld Defense",
+        55.0,
+        111
+      ],
+      [
+        "French Defense",
+        54.8,
+        221
+      ],
+      [
+        "Scotch Game",
+        54.4,
+        114
       ],
       [
         "Queen's Gambit Declined",
-        53.1,
-        259
-      ],
-      [
-        "Giuoco Piano",
-        51.7,
-        88
+        53.5,
+        328
       ],
       [
         "Sicilian Defense",
-        51.5,
-        424
-      ],
-      [
-        "Caro-Kann Defense",
-        49.1,
-        173
+        53.1,
+        541
       ],
       [
         "Queen's Bishop Game",
-        48.9,
-        89
+        52.7,
+        112
+      ],
+      [
+        "Caro-Kann Defense",
+        49.3,
+        219
       ],
       [
         "Two Knights Defense",
-        45.5,
-        88
+        44.1,
+        111
       ]
     ],
     "3200\u20133600": [
       [
         "Scotch Game",
-        29.0,
-        88
+        30.0,
+        110
       ],
       [
         "English Opening",
-        26.8,
-        259
-      ],
-      [
-        "French Defense",
-        26.0,
-        179
+        26.5,
+        328
       ],
       [
         "Queen's Gambit Declined",
-        25.7,
-        259
+        26.1,
+        329
       ],
       [
-        "Giuoco Piano",
-        24.1,
-        87
+        "French Defense",
+        24.8,
+        226
       ],
       [
         "Pirc / Modern Defense",
-        23.3,
-        176
-      ],
-      [
-        "Queen's Bishop Game",
-        22.9,
-        83
+        23.2,
+        224
       ],
       [
         "Sicilian Defense",
-        22.6,
-        409
+        22.2,
+        527
       ],
       [
-        "Two Knights Defense",
-        22.4,
-        85
+        "Queen's Bishop Game",
+        21.7,
+        106
       ],
       [
         "Caro-Kann Defense",
-        22.2,
-        167
+        21.2,
+        215
+      ],
+      [
+        "Two Knights Defense",
+        20.9,
+        110
+      ],
+      [
+        "Gr\u00fcnfeld Defense",
+        18.9,
+        114
       ]
     ]
   }

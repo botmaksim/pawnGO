@@ -238,15 +238,16 @@ def generate_advanced_charts():
     for i, r in enumerate(bin_rates):
         w, l, d = phase_bins[bin_labels[i]]
         m = bin_margins[i]
-        ax1.annotate(f"{r}% (±{m:.1f}%)\n(+{w} -{l} ={d})", (x_bins[i], r + 3),
-                     ha="center", fontsize=9.0, fontweight="bold", color="#ffffff")
+        y_pos = r + max(m, 3.0) + 1.5
+        ax1.annotate(f"{r}% (±{m:.1f}%)\n(+{w} -{l} ={d})", (x_bins[i], y_pos),
+                     ha="center", fontsize=8.5, fontweight="bold", color="#ffffff")
 
     ax1.set_title("Score by Game Length Bracket", fontsize=12, fontweight="bold", color="#f0f6fc", pad=10)
     ax1.set_xlabel("Game Length", fontsize=10.5, fontweight="bold", color="#c9d1d9", labelpad=8)
     ax1.set_ylabel("Score (%)", fontsize=10.5, fontweight="bold", color="#c9d1d9", labelpad=8)
     ax1.set_xticks(x_bins)
     ax1.set_xticklabels(bin_labels, fontsize=9.5)
-    ax1.set_ylim(0, 105)
+    ax1.set_ylim(0, 120)
     ax1.legend(loc="upper right", facecolor="#161b22", edgecolor="#30363d", fontsize=9, labelcolor="#c9d1d9")
 
     # Panel B: Histogram of Wins vs Losses
@@ -320,7 +321,7 @@ def generate_advanced_charts():
         ax_bar.set_yticks(y_pos)
         ax_bar.set_yticklabels(top_ops, fontsize=10, fontweight="bold")
         ax_bar.invert_yaxis()
-        ax_bar.set_xlim(0, 115)
+        ax_bar.set_xlim(0, 120)
         ax_bar.set_xlabel("Score (%)", fontsize=10.5, fontweight="bold", color="#c9d1d9", labelpad=8)
         ax_bar.set_title("Performance by Opponent Rating Tier", fontsize=12, fontweight="bold", color="#f0f6fc", pad=32)
         ax_bar.legend(bbox_to_anchor=(0.5, 1.03), loc="lower center", ncol=4,

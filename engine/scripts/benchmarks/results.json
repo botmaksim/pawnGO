@@ -51,28 +51,28 @@
       }
     },
     "ultraslow": {
-      "wins": 60,
-      "losses": 0,
-      "draws": 0,
-      "points": 60.0,
-      "total": 60,
-      "win_rate": 100.0,
-      "duration_sec": 270.6,
+      "wins": 98,
+      "losses": 1,
+      "draws": 1,
+      "points": 98.5,
+      "total": 100,
+      "win_rate": 98.5,
+      "duration_sec": 402.8,
       "white": {
-        "wins": 30,
-        "losses": 0,
+        "wins": 49,
+        "losses": 1,
         "draws": 0,
-        "points": 30.0,
-        "total": 30,
-        "win_rate": 100.0
+        "points": 49.0,
+        "total": 50,
+        "win_rate": 98.0
       },
       "black": {
-        "wins": 30,
+        "wins": 49,
         "losses": 0,
-        "draws": 0,
-        "points": 30.0,
-        "total": 30,
-        "win_rate": 100.0
+        "draws": 1,
+        "points": 49.5,
+        "total": 50,
+        "win_rate": 99.0
       }
     }
   },
@@ -103,53 +103,53 @@
       }
     },
     "slow": {
-      "wins": 148,
-      "losses": 2,
+      "wins": 247,
+      "losses": 3,
       "draws": 0,
-      "points": 148.0,
-      "total": 150,
-      "win_rate": 98.7,
-      "duration_sec": 285.3,
+      "points": 247.0,
+      "total": 250,
+      "win_rate": 98.8,
+      "duration_sec": 422.6,
       "white": {
-        "wins": 75,
+        "wins": 125,
         "losses": 0,
         "draws": 0,
-        "points": 75.0,
-        "total": 75,
+        "points": 125.0,
+        "total": 125,
         "win_rate": 100.0
       },
       "black": {
-        "wins": 73,
-        "losses": 2,
+        "wins": 122,
+        "losses": 3,
         "draws": 0,
-        "points": 73.0,
-        "total": 75,
-        "win_rate": 97.3
+        "points": 122.0,
+        "total": 125,
+        "win_rate": 97.6
       }
     },
     "ultraslow": {
-      "wins": 59,
+      "wins": 99,
       "losses": 1,
       "draws": 0,
-      "points": 59.0,
-      "total": 60,
-      "win_rate": 98.3,
-      "duration_sec": 272.3,
+      "points": 99.0,
+      "total": 100,
+      "win_rate": 99.0,
+      "duration_sec": 402.1,
       "white": {
-        "wins": 30,
+        "wins": 50,
         "losses": 0,
         "draws": 0,
-        "points": 30.0,
-        "total": 30,
+        "points": 50.0,
+        "total": 50,
         "win_rate": 100.0
       },
       "black": {
-        "wins": 29,
+        "wins": 49,
         "losses": 1,
         "draws": 0,
-        "points": 29.0,
-        "total": 30,
-        "win_rate": 96.7
+        "points": 49.0,
+        "total": 50,
+        "win_rate": 98.0
       }
     }
   },
@@ -180,53 +180,53 @@
       }
     },
     "slow": {
-      "wins": 142,
-      "losses": 6,
-      "draws": 2,
-      "points": 143.0,
-      "total": 150,
-      "win_rate": 95.3,
-      "duration_sec": 332.2,
+      "wins": 232,
+      "losses": 13,
+      "draws": 5,
+      "points": 234.5,
+      "total": 250,
+      "win_rate": 93.8,
+      "duration_sec": 478.7,
       "white": {
-        "wins": 72,
-        "losses": 3,
-        "draws": 0,
-        "points": 72.0,
-        "total": 75,
-        "win_rate": 96.0
+        "wins": 117,
+        "losses": 6,
+        "draws": 2,
+        "points": 118.0,
+        "total": 125,
+        "win_rate": 94.4
       },
       "black": {
-        "wins": 70,
-        "losses": 3,
-        "draws": 2,
-        "points": 71.0,
-        "total": 75,
-        "win_rate": 94.7
+        "wins": 115,
+        "losses": 7,
+        "draws": 3,
+        "points": 116.5,
+        "total": 125,
+        "win_rate": 93.2
       }
     },
     "ultraslow": {
-      "wins": 58,
-      "losses": 1,
-      "draws": 1,
-      "points": 58.5,
-      "total": 60,
-      "win_rate": 97.5,
-      "duration_sec": 328.0,
+      "wins": 96,
+      "losses": 2,
+      "draws": 2,
+      "points": 97.0,
+      "total": 100,
+      "win_rate": 97.0,
+      "duration_sec": 458.2,
       "white": {
-        "wins": 28,
+        "wins": 47,
         "losses": 1,
-        "draws": 1,
-        "points": 28.5,
-        "total": 30,
-        "win_rate": 95.0
+        "draws": 2,
+        "points": 48.0,
+        "total": 50,
+        "win_rate": 96.0
       },
       "black": {
-        "wins": 30,
-        "losses": 0,
+        "wins": 49,
+        "losses": 1,
         "draws": 0,
-        "points": 30.0,
-        "total": 30,
-        "win_rate": 100.0
+        "points": 49.0,
+        "total": 50,
+        "win_rate": 98.0
       }
     }
   },
@@ -257,53 +257,53 @@
       }
     },
     "slow": {
-      "wins": 139,
-      "losses": 9,
-      "draws": 2,
-      "points": 140.0,
-      "total": 150,
-      "win_rate": 93.3,
-      "duration_sec": 303.5,
+      "wins": 233,
+      "losses": 13,
+      "draws": 4,
+      "points": 235.0,
+      "total": 250,
+      "win_rate": 94.0,
+      "duration_sec": 466.2,
       "white": {
-        "wins": 70,
-        "losses": 4,
+        "wins": 118,
+        "losses": 6,
         "draws": 1,
-        "points": 70.5,
-        "total": 75,
-        "win_rate": 94.0
+        "points": 118.5,
+        "total": 125,
+        "win_rate": 94.8
       },
       "black": {
-        "wins": 69,
-        "losses": 5,
-        "draws": 1,
-        "points": 69.5,
-        "total": 75,
-        "win_rate": 92.7
+        "wins": 115,
+        "losses": 7,
+        "draws": 3,
+        "points": 116.5,
+        "total": 125,
+        "win_rate": 93.2
       }
     },
     "ultraslow": {
-      "wins": 58,
-      "losses": 1,
-      "draws": 1,
-      "points": 58.5,
-      "total": 60,
-      "win_rate": 97.5,
-      "duration_sec": 297.4,
+      "wins": 94,
+      "losses": 4,
+      "draws": 2,
+      "points": 95.0,
+      "total": 100,
+      "win_rate": 95.0,
+      "duration_sec": 443.8,
       "white": {
-        "wins": 30,
-        "losses": 0,
+        "wins": 48,
+        "losses": 2,
         "draws": 0,
-        "points": 30.0,
-        "total": 30,
-        "win_rate": 100.0
+        "points": 48.0,
+        "total": 50,
+        "win_rate": 96.0
       },
       "black": {
-        "wins": 28,
-        "losses": 1,
-        "draws": 1,
-        "points": 28.5,
-        "total": 30,
-        "win_rate": 95.0
+        "wins": 46,
+        "losses": 2,
+        "draws": 2,
+        "points": 47.0,
+        "total": 50,
+        "win_rate": 94.0
       }
     }
   },
@@ -334,53 +334,53 @@
       }
     },
     "slow": {
-      "wins": 136,
-      "losses": 8,
-      "draws": 6,
-      "points": 139.0,
-      "total": 150,
-      "win_rate": 92.7,
-      "duration_sec": 399.8,
+      "wins": 226,
+      "losses": 14,
+      "draws": 10,
+      "points": 231.0,
+      "total": 250,
+      "win_rate": 92.4,
+      "duration_sec": 573.0,
       "white": {
-        "wins": 70,
-        "losses": 3,
-        "draws": 2,
-        "points": 71.0,
-        "total": 75,
-        "win_rate": 94.7
+        "wins": 117,
+        "losses": 5,
+        "draws": 3,
+        "points": 118.5,
+        "total": 125,
+        "win_rate": 94.8
       },
       "black": {
-        "wins": 66,
-        "losses": 5,
-        "draws": 4,
-        "points": 68.0,
-        "total": 75,
-        "win_rate": 90.7
+        "wins": 109,
+        "losses": 9,
+        "draws": 7,
+        "points": 112.5,
+        "total": 125,
+        "win_rate": 90.0
       }
     },
     "ultraslow": {
-      "wins": 57,
-      "losses": 1,
-      "draws": 2,
-      "points": 58.0,
-      "total": 60,
-      "win_rate": 96.7,
-      "duration_sec": 348.9,
+      "wins": 93,
+      "losses": 2,
+      "draws": 5,
+      "points": 95.5,
+      "total": 100,
+      "win_rate": 95.5,
+      "duration_sec": 517.3,
       "white": {
-        "wins": 30,
+        "wins": 48,
         "losses": 0,
-        "draws": 0,
-        "points": 30.0,
-        "total": 30,
-        "win_rate": 100.0
+        "draws": 2,
+        "points": 49.0,
+        "total": 50,
+        "win_rate": 98.0
       },
       "black": {
-        "wins": 27,
-        "losses": 1,
-        "draws": 2,
-        "points": 28.0,
-        "total": 30,
-        "win_rate": 93.3
+        "wins": 45,
+        "losses": 2,
+        "draws": 3,
+        "points": 46.5,
+        "total": 50,
+        "win_rate": 93.0
       }
     }
   },
@@ -411,52 +411,52 @@
       }
     },
     "slow": {
-      "wins": 113,
-      "losses": 26,
-      "draws": 11,
-      "points": 118.5,
-      "total": 150,
-      "win_rate": 79.0,
-      "duration_sec": 374.7,
+      "wins": 192,
+      "losses": 41,
+      "draws": 17,
+      "points": 200.5,
+      "total": 250,
+      "win_rate": 80.2,
+      "duration_sec": 562.1,
       "white": {
-        "wins": 58,
-        "losses": 12,
-        "draws": 5,
-        "points": 60.5,
-        "total": 75,
-        "win_rate": 80.7
+        "wins": 99,
+        "losses": 19,
+        "draws": 7,
+        "points": 102.5,
+        "total": 125,
+        "win_rate": 82.0
       },
       "black": {
-        "wins": 55,
-        "losses": 14,
-        "draws": 6,
-        "points": 58.0,
-        "total": 75,
-        "win_rate": 77.3
+        "wins": 93,
+        "losses": 22,
+        "draws": 10,
+        "points": 98.0,
+        "total": 125,
+        "win_rate": 78.4
       }
     },
     "ultraslow": {
-      "wins": 51,
-      "losses": 4,
-      "draws": 5,
-      "points": 53.5,
-      "total": 60,
-      "win_rate": 89.2,
-      "duration_sec": 346.2,
+      "wins": 83,
+      "losses": 8,
+      "draws": 9,
+      "points": 87.5,
+      "total": 100,
+      "win_rate": 87.5,
+      "duration_sec": 513.5,
       "white": {
-        "wins": 25,
-        "losses": 2,
-        "draws": 3,
-        "points": 26.5,
-        "total": 30,
-        "win_rate": 88.3
+        "wins": 40,
+        "losses": 5,
+        "draws": 5,
+        "points": 42.5,
+        "total": 50,
+        "win_rate": 85.0
       },
       "black": {
-        "wins": 26,
-        "losses": 2,
-        "draws": 2,
-        "points": 27.0,
-        "total": 30,
+        "wins": 43,
+        "losses": 3,
+        "draws": 4,
+        "points": 45.0,
+        "total": 50,
         "win_rate": 90.0
       }
     }
@@ -488,53 +488,53 @@
       }
     },
     "slow": {
-      "wins": 78,
-      "losses": 45,
-      "draws": 27,
-      "points": 91.5,
-      "total": 150,
-      "win_rate": 61.0,
-      "duration_sec": 363.0,
+      "wins": 119,
+      "losses": 85,
+      "draws": 46,
+      "points": 142.0,
+      "total": 250,
+      "win_rate": 56.8,
+      "duration_sec": 571.7,
       "white": {
-        "wins": 43,
-        "losses": 19,
-        "draws": 13,
-        "points": 49.5,
-        "total": 75,
-        "win_rate": 66.0
+        "wins": 64,
+        "losses": 41,
+        "draws": 20,
+        "points": 74.0,
+        "total": 125,
+        "win_rate": 59.2
       },
       "black": {
-        "wins": 35,
-        "losses": 26,
-        "draws": 14,
-        "points": 42.0,
-        "total": 75,
-        "win_rate": 56.0
+        "wins": 55,
+        "losses": 44,
+        "draws": 26,
+        "points": 68.0,
+        "total": 125,
+        "win_rate": 54.4
       }
     },
     "ultraslow": {
-      "wins": 34,
-      "losses": 14,
-      "draws": 12,
-      "points": 40.0,
-      "total": 60,
-      "win_rate": 66.7,
-      "duration_sec": 419.8,
+      "wins": 59,
+      "losses": 21,
+      "draws": 20,
+      "points": 69.0,
+      "total": 100,
+      "win_rate": 69.0,
+      "duration_sec": 622.7,
       "white": {
-        "wins": 18,
-        "losses": 7,
-        "draws": 5,
-        "points": 20.5,
-        "total": 30,
-        "win_rate": 68.3
+        "wins": 27,
+        "losses": 12,
+        "draws": 11,
+        "points": 32.5,
+        "total": 50,
+        "win_rate": 65.0
       },
       "black": {
-        "wins": 16,
-        "losses": 7,
-        "draws": 7,
-        "points": 19.5,
-        "total": 30,
-        "win_rate": 65.0
+        "wins": 32,
+        "losses": 9,
+        "draws": 9,
+        "points": 36.5,
+        "total": 50,
+        "win_rate": 73.0
       }
     }
   },
@@ -565,53 +565,53 @@
       }
     },
     "slow": {
-      "wins": 73,
-      "losses": 48,
-      "draws": 29,
-      "points": 87.5,
-      "total": 150,
-      "win_rate": 58.3,
-      "duration_sec": 413.6,
+      "wins": 111,
+      "losses": 89,
+      "draws": 50,
+      "points": 136.0,
+      "total": 250,
+      "win_rate": 54.4,
+      "duration_sec": 605.4,
       "white": {
-        "wins": 42,
-        "losses": 18,
-        "draws": 15,
-        "points": 49.5,
-        "total": 75,
-        "win_rate": 66.0
+        "wins": 66,
+        "losses": 33,
+        "draws": 26,
+        "points": 79.0,
+        "total": 125,
+        "win_rate": 63.2
       },
       "black": {
-        "wins": 31,
-        "losses": 30,
-        "draws": 14,
-        "points": 38.0,
-        "total": 75,
-        "win_rate": 50.7
+        "wins": 45,
+        "losses": 56,
+        "draws": 24,
+        "points": 57.0,
+        "total": 125,
+        "win_rate": 45.6
       }
     },
     "ultraslow": {
-      "wins": 22,
-      "losses": 24,
-      "draws": 14,
-      "points": 29.0,
-      "total": 60,
-      "win_rate": 48.3,
-      "duration_sec": 456.0,
+      "wins": 42,
+      "losses": 35,
+      "draws": 23,
+      "points": 53.5,
+      "total": 100,
+      "win_rate": 53.5,
+      "duration_sec": 682.4,
       "white": {
-        "wins": 10,
-        "losses": 12,
-        "draws": 8,
-        "points": 14.0,
-        "total": 30,
-        "win_rate": 46.7
+        "wins": 21,
+        "losses": 17,
+        "draws": 12,
+        "points": 27.0,
+        "total": 50,
+        "win_rate": 54.0
       },
       "black": {
-        "wins": 12,
-        "losses": 12,
-        "draws": 6,
-        "points": 15.0,
-        "total": 30,
-        "win_rate": 50.0
+        "wins": 21,
+        "losses": 18,
+        "draws": 11,
+        "points": 26.5,
+        "total": 50,
+        "win_rate": 53.0
       }
     }
   },
@@ -642,53 +642,53 @@
       }
     },
     "slow": {
-      "wins": 46,
-      "losses": 67,
-      "draws": 37,
-      "points": 64.5,
-      "total": 150,
-      "win_rate": 43.0,
-      "duration_sec": 393.8,
+      "wins": 87,
+      "losses": 103,
+      "draws": 60,
+      "points": 117.0,
+      "total": 250,
+      "win_rate": 46.8,
+      "duration_sec": 616.7,
       "white": {
-        "wins": 25,
-        "losses": 33,
-        "draws": 17,
-        "points": 33.5,
-        "total": 75,
-        "win_rate": 44.7
+        "wins": 47,
+        "losses": 48,
+        "draws": 30,
+        "points": 62.0,
+        "total": 125,
+        "win_rate": 49.6
       },
       "black": {
-        "wins": 21,
-        "losses": 34,
-        "draws": 20,
-        "points": 31.0,
-        "total": 75,
-        "win_rate": 41.3
+        "wins": 40,
+        "losses": 55,
+        "draws": 30,
+        "points": 55.0,
+        "total": 125,
+        "win_rate": 44.0
       }
     },
     "ultraslow": {
-      "wins": 16,
-      "losses": 25,
-      "draws": 19,
-      "points": 25.5,
-      "total": 60,
-      "win_rate": 42.5,
-      "duration_sec": 384.5,
+      "wins": 26,
+      "losses": 44,
+      "draws": 30,
+      "points": 41.0,
+      "total": 100,
+      "win_rate": 41.0,
+      "duration_sec": 583.5,
       "white": {
-        "wins": 9,
-        "losses": 10,
-        "draws": 11,
-        "points": 14.5,
-        "total": 30,
-        "win_rate": 48.3
+        "wins": 12,
+        "losses": 23,
+        "draws": 15,
+        "points": 19.5,
+        "total": 50,
+        "win_rate": 39.0
       },
       "black": {
-        "wins": 7,
-        "losses": 15,
-        "draws": 8,
-        "points": 11.0,
-        "total": 30,
-        "win_rate": 36.7
+        "wins": 14,
+        "losses": 21,
+        "draws": 15,
+        "points": 21.5,
+        "total": 50,
+        "win_rate": 43.0
       }
     }
   },
@@ -719,53 +719,53 @@
       }
     },
     "slow": {
-      "wins": 32,
-      "losses": 80,
-      "draws": 38,
-      "points": 51.0,
-      "total": 150,
-      "win_rate": 34.0,
-      "duration_sec": 396.9,
+      "wins": 54,
+      "losses": 138,
+      "draws": 58,
+      "points": 83.0,
+      "total": 250,
+      "win_rate": 33.2,
+      "duration_sec": 619.3,
       "white": {
-        "wins": 20,
-        "losses": 32,
-        "draws": 23,
-        "points": 31.5,
-        "total": 75,
-        "win_rate": 42.0
+        "wins": 31,
+        "losses": 60,
+        "draws": 34,
+        "points": 48.0,
+        "total": 125,
+        "win_rate": 38.4
       },
       "black": {
-        "wins": 12,
-        "losses": 48,
-        "draws": 15,
-        "points": 19.5,
-        "total": 75,
-        "win_rate": 26.0
+        "wins": 23,
+        "losses": 78,
+        "draws": 24,
+        "points": 35.0,
+        "total": 125,
+        "win_rate": 28.0
       }
     },
     "ultraslow": {
-      "wins": 10,
-      "losses": 37,
-      "draws": 13,
-      "points": 16.5,
-      "total": 60,
-      "win_rate": 27.5,
-      "duration_sec": 469.8,
+      "wins": 20,
+      "losses": 59,
+      "draws": 21,
+      "points": 30.5,
+      "total": 100,
+      "win_rate": 30.5,
+      "duration_sec": 751.7,
       "white": {
-        "wins": 8,
-        "losses": 16,
-        "draws": 6,
-        "points": 11.0,
-        "total": 30,
-        "win_rate": 36.7
+        "wins": 12,
+        "losses": 28,
+        "draws": 10,
+        "points": 17.0,
+        "total": 50,
+        "win_rate": 34.0
       },
       "black": {
-        "wins": 2,
-        "losses": 21,
-        "draws": 7,
-        "points": 5.5,
-        "total": 30,
-        "win_rate": 18.3
+        "wins": 8,
+        "losses": 31,
+        "draws": 11,
+        "points": 13.5,
+        "total": 50,
+        "win_rate": 27.0
       }
     }
   },
@@ -796,53 +796,53 @@
       }
     },
     "slow": {
-      "wins": 31,
-      "losses": 88,
-      "draws": 31,
-      "points": 46.5,
-      "total": 150,
-      "win_rate": 31.0,
-      "duration_sec": 368.9,
+      "wins": 47,
+      "losses": 153,
+      "draws": 50,
+      "points": 72.0,
+      "total": 250,
+      "win_rate": 28.8,
+      "duration_sec": 571.7,
       "white": {
-        "wins": 19,
-        "losses": 42,
-        "draws": 14,
-        "points": 26.0,
-        "total": 75,
-        "win_rate": 34.7
+        "wins": 30,
+        "losses": 70,
+        "draws": 25,
+        "points": 42.5,
+        "total": 125,
+        "win_rate": 34.0
       },
       "black": {
-        "wins": 12,
-        "losses": 46,
-        "draws": 17,
-        "points": 20.5,
-        "total": 75,
-        "win_rate": 27.3
+        "wins": 17,
+        "losses": 83,
+        "draws": 25,
+        "points": 29.5,
+        "total": 125,
+        "win_rate": 23.6
       }
     },
     "ultraslow": {
-      "wins": 10,
-      "losses": 33,
-      "draws": 17,
-      "points": 18.5,
-      "total": 60,
-      "win_rate": 30.8,
-      "duration_sec": 393.8,
+      "wins": 15,
+      "losses": 62,
+      "draws": 23,
+      "points": 26.5,
+      "total": 100,
+      "win_rate": 26.5,
+      "duration_sec": 583.6,
       "white": {
-        "wins": 5,
-        "losses": 14,
-        "draws": 11,
-        "points": 10.5,
-        "total": 30,
-        "win_rate": 35.0
+        "wins": 9,
+        "losses": 26,
+        "draws": 15,
+        "points": 16.5,
+        "total": 50,
+        "win_rate": 33.0
       },
       "black": {
-        "wins": 5,
-        "losses": 19,
-        "draws": 6,
-        "points": 8.0,
-        "total": 30,
-        "win_rate": 26.7
+        "wins": 6,
+        "losses": 36,
+        "draws": 8,
+        "points": 10.0,
+        "total": 50,
+        "win_rate": 20.0
       }
     }
   },
@@ -873,53 +873,53 @@
       }
     },
     "slow": {
-      "wins": 42,
-      "losses": 74,
-      "draws": 34,
-      "points": 59.0,
-      "total": 150,
-      "win_rate": 39.3,
-      "duration_sec": 443.1,
+      "wins": 72,
+      "losses": 132,
+      "draws": 46,
+      "points": 95.0,
+      "total": 250,
+      "win_rate": 38.0,
+      "duration_sec": 645.1,
       "white": {
-        "wins": 28,
-        "losses": 30,
-        "draws": 17,
-        "points": 36.5,
-        "total": 75,
-        "win_rate": 48.7
+        "wins": 44,
+        "losses": 58,
+        "draws": 23,
+        "points": 55.5,
+        "total": 125,
+        "win_rate": 44.4
       },
       "black": {
-        "wins": 14,
-        "losses": 44,
-        "draws": 17,
-        "points": 22.5,
-        "total": 75,
-        "win_rate": 30.0
+        "wins": 28,
+        "losses": 74,
+        "draws": 23,
+        "points": 39.5,
+        "total": 125,
+        "win_rate": 31.6
       }
     },
     "ultraslow": {
-      "wins": 15,
-      "losses": 29,
-      "draws": 16,
-      "points": 23.0,
-      "total": 60,
-      "win_rate": 38.3,
-      "duration_sec": 478.6,
+      "wins": 21,
+      "losses": 54,
+      "draws": 25,
+      "points": 33.5,
+      "total": 100,
+      "win_rate": 33.5,
+      "duration_sec": 678.3,
       "white": {
-        "wins": 11,
-        "losses": 13,
-        "draws": 6,
-        "points": 14.0,
-        "total": 30,
-        "win_rate": 46.7
+        "wins": 14,
+        "losses": 22,
+        "draws": 14,
+        "points": 21.0,
+        "total": 50,
+        "win_rate": 42.0
       },
       "black": {
-        "wins": 4,
-        "losses": 16,
-        "draws": 10,
-        "points": 9.0,
-        "total": 30,
-        "win_rate": 30.0
+        "wins": 7,
+        "losses": 32,
+        "draws": 11,
+        "points": 12.5,
+        "total": 50,
+        "win_rate": 25.0
       }
     }
   },
@@ -950,53 +950,53 @@
       }
     },
     "slow": {
-      "wins": 28,
-      "losses": 98,
-      "draws": 24,
-      "points": 40.0,
-      "total": 150,
-      "win_rate": 26.7,
-      "duration_sec": 426.6,
+      "wins": 47,
+      "losses": 160,
+      "draws": 43,
+      "points": 68.5,
+      "total": 250,
+      "win_rate": 27.4,
+      "duration_sec": 622.0,
       "white": {
-        "wins": 12,
-        "losses": 49,
-        "draws": 14,
-        "points": 19.0,
-        "total": 75,
-        "win_rate": 25.3
+        "wins": 24,
+        "losses": 77,
+        "draws": 24,
+        "points": 36.0,
+        "total": 125,
+        "win_rate": 28.8
       },
       "black": {
-        "wins": 16,
-        "losses": 49,
-        "draws": 10,
-        "points": 21.0,
-        "total": 75,
-        "win_rate": 28.0
+        "wins": 23,
+        "losses": 83,
+        "draws": 19,
+        "points": 32.5,
+        "total": 125,
+        "win_rate": 26.0
       }
     },
     "ultraslow": {
-      "wins": 12,
-      "losses": 36,
-      "draws": 12,
-      "points": 18.0,
-      "total": 60,
-      "win_rate": 30.0,
-      "duration_sec": 599.5,
+      "wins": 13,
+      "losses": 61,
+      "draws": 26,
+      "points": 26.0,
+      "total": 100,
+      "win_rate": 26.0,
+      "duration_sec": 799.7,
       "white": {
-        "wins": 5,
-        "losses": 17,
-        "draws": 8,
-        "points": 9.0,
-        "total": 30,
-        "win_rate": 30.0
+        "wins": 6,
+        "losses": 28,
+        "draws": 16,
+        "points": 14.0,
+        "total": 50,
+        "win_rate": 28.0
       },
       "black": {
         "wins": 7,
-        "losses": 19,
-        "draws": 4,
-        "points": 9.0,
-        "total": 30,
-        "win_rate": 30.0
+        "losses": 33,
+        "draws": 10,
+        "points": 12.0,
+        "total": 50,
+        "win_rate": 24.0
       }
     }
   },
@@ -1027,53 +1027,53 @@
       }
     },
     "slow": {
-      "wins": 23,
-      "losses": 105,
-      "draws": 22,
-      "points": 34.0,
-      "total": 150,
-      "win_rate": 22.7,
-      "duration_sec": 377.6,
+      "wins": 42,
+      "losses": 170,
+      "draws": 38,
+      "points": 61.0,
+      "total": 250,
+      "win_rate": 24.4,
+      "duration_sec": 560.3,
       "white": {
-        "wins": 17,
-        "losses": 45,
-        "draws": 13,
-        "points": 23.5,
-        "total": 75,
-        "win_rate": 31.3
+        "wins": 25,
+        "losses": 77,
+        "draws": 23,
+        "points": 36.5,
+        "total": 125,
+        "win_rate": 29.2
       },
       "black": {
-        "wins": 6,
-        "losses": 60,
-        "draws": 9,
-        "points": 10.5,
-        "total": 75,
-        "win_rate": 14.0
+        "wins": 17,
+        "losses": 93,
+        "draws": 15,
+        "points": 24.5,
+        "total": 125,
+        "win_rate": 19.6
       }
     },
     "ultraslow": {
-      "wins": 10,
-      "losses": 37,
-      "draws": 13,
-      "points": 16.5,
-      "total": 60,
-      "win_rate": 27.5,
-      "duration_sec": 510.3,
+      "wins": 14,
+      "losses": 60,
+      "draws": 26,
+      "points": 27.0,
+      "total": 100,
+      "win_rate": 27.0,
+      "duration_sec": 704.0,
       "white": {
-        "wins": 4,
-        "losses": 19,
-        "draws": 7,
-        "points": 7.5,
-        "total": 30,
-        "win_rate": 25.0
+        "wins": 6,
+        "losses": 29,
+        "draws": 15,
+        "points": 13.5,
+        "total": 50,
+        "win_rate": 27.0
       },
       "black": {
-        "wins": 6,
-        "losses": 18,
-        "draws": 6,
-        "points": 9.0,
-        "total": 30,
-        "win_rate": 30.0
+        "wins": 8,
+        "losses": 31,
+        "draws": 11,
+        "points": 13.5,
+        "total": 50,
+        "win_rate": 27.0
       }
     }
   },
@@ -1105,52 +1105,52 @@
     },
     "slow": {
       "wins": 0,
-      "losses": 145,
-      "draws": 5,
-      "points": 2.5,
-      "total": 150,
-      "win_rate": 1.7,
-      "duration_sec": 318.1,
+      "losses": 244,
+      "draws": 6,
+      "points": 3.0,
+      "total": 250,
+      "win_rate": 1.2,
+      "duration_sec": 466.5,
       "white": {
         "wins": 0,
-        "losses": 70,
-        "draws": 5,
-        "points": 2.5,
-        "total": 75,
-        "win_rate": 3.3
+        "losses": 119,
+        "draws": 6,
+        "points": 3.0,
+        "total": 125,
+        "win_rate": 2.4
       },
       "black": {
         "wins": 0,
-        "losses": 75,
+        "losses": 125,
         "draws": 0,
         "points": 0.0,
-        "total": 75,
+        "total": 125,
         "win_rate": 0.0
       }
     },
     "ultraslow": {
       "wins": 0,
-      "losses": 58,
-      "draws": 2,
-      "points": 1.0,
-      "total": 60,
-      "win_rate": 1.7,
-      "duration_sec": 336.2,
+      "losses": 97,
+      "draws": 3,
+      "points": 1.5,
+      "total": 100,
+      "win_rate": 1.5,
+      "duration_sec": 482.6,
       "white": {
         "wins": 0,
-        "losses": 29,
+        "losses": 49,
         "draws": 1,
         "points": 0.5,
-        "total": 30,
-        "win_rate": 1.7
+        "total": 50,
+        "win_rate": 1.0
       },
       "black": {
         "wins": 0,
-        "losses": 29,
-        "draws": 1,
-        "points": 0.5,
-        "total": 30,
-        "win_rate": 1.7
+        "losses": 48,
+        "draws": 2,
+        "points": 1.0,
+        "total": 50,
+        "win_rate": 2.0
       }
     }
   }
