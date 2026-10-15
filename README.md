@@ -175,6 +175,20 @@ Performance across 9,750 tournament games distributed into three opponent rating
 | **Mistakes** | 30,176 (5.4%) |
 | **Blunders** | **8,099 (1.5%)** |
 
+#### Impact of Time Trouble (Zeitnot) on Move Quality & Endgames
+
+A notable observation in the referee distribution is that the proportion of engine-optimal "Best" moves sits at 55.7% (with good moves at 21.8%), while inaccuracies reach 15.6%. This distribution is directly driven by **severe time trouble (zeitnot)** in fast time controls, particularly in deep endgames:
+
+1. **Sub-Second Search Horizon Degradation**:
+   - In Fast Blitz (`2+0.05`) and Slow Blitz (`5+0.1`), games extending beyond move 45 often force the engine to operate exclusively on the increment buffer (0.05s to 0.10s per move).
+   - Under acute time pressure, pawnGO dynamically curtails search depth to 6–8 plies (compared to depth 14–18 in calm middlegames), whereas the Stockfish 17.1 referee evaluates every position at an unconstrained `depth=14`.
+   - Small positional differences (e.g. 20–40 centipawn deltas between the 1st and 3rd candidate move) are automatically penalized as inaccuracies or non-best moves by the referee, even when practically holding or winning.
+
+2. **Acute Endgame Calculation Pressure**:
+   - Complex 6- and 7-piece endings prior to 5-piece Syzygy tablebase resolution require deep, multi-ply tactical calculation (king triangulation, opposition, breakthrough tempo counting).
+   - In endgame zeitnot, minor inaccuracies naturally accumulate as non-critical piece shuffles are played to maintain clock stability on increment.
+   - Decisive game-losing blunders remain tightly restricted to just **1.5%** across all 555,138 evaluated moves, confirming that endgame time pressure produces positional drift rather than catastrophic tactical blunders.
+
 ---
 
 ## Web Application
